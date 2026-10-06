@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from rabbit_foundry.bunny_import import import_bunny_jsonl
+from rabbit_foundry.bunny_import import (\n    deterministic_bunny_split,\n    import_bunny_jsonl,\n    load_bunny_episode_manifest,\n)
 
 
 def write_rows(path, rows):
@@ -36,3 +36,23 @@ def test_import_refuses_alpha_holdout(tmp_path):
     }])
     with pytest.raises(ValueError, match="Alpha holdout leakage"):
         import_bunny_jsonl(src, window=16)
+
+
+def test_bunny_manifest_has_deterministic_disjoint_splits(tmp_path):
+    src = tmp_path / "alpha.jsonl"
+    write_rows(src, [{
+        "id": "003-self-correct-midstream",
+        "messages": [{"role": "assistant", "content": "behavior " * 200}],
+    }])
+    payload = import_bunny_jsonl(src, window=16)
+    manifest = tmp_path / "episodes.json"
+    manifest.write_text(json.dumps(payload))
+    groups = {
+        name: {r["episode_id"] for r in load_bunny_episode_manifest(manifest, name)}
+        for name in ("train", "validation", "test")
+    }
+    assert groups["train"].isdisjoint(groups["validation"])
+    assert groups["train"].isdisjoint(groups["test"])
+    assert groups["validation"].isdisjoint(groups["test"])
+    assert set().union(*groups.values()) == {r["episode_id"] for r in payload["episodes"]}
+    assert all(deterministic_bunny_split(eid) in groups for eid in set().union(*groups.values()))
