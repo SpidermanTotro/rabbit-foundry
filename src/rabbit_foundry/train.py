@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 from dataclasses import asdict
 from pathlib import Path
 
 import torch
 
+from .curriculum import Curriculum, Outcome
 from .dataset import episode_tensors, load_episode_manifest
 from .greenlight import CandidateScore, decide
 from .model import ModelConfig, TinyRabbitLM
@@ -32,6 +34,17 @@ def manifest_episodes(path: str):
     if not train_rows or not valid_rows:
         raise ValueError("manifest needs both train and validation source splits")
     return train_rows, valid_rows
+
+
+def rows_for_skill(rows, skill):
+    selected = [row for row in rows if row.get("skill", "code_prediction") == skill]
+    if not selected:
+        raise ValueError(f"no training episodes for skill: {skill}")
+    return selected
+
+
+def episode_skills(rows):
+    return sorted({row.get("skill", "code_prediction") for row in rows})
 
 
 def make_episode_batch(rows, batch, seq, device):
@@ -75,7 +88,10 @@ def evaluate(model, data, batch, seq, device, batches=8):
     return sum(losses) / len(losses)
 
 
-def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device, episode_mode=False):
+def train_one(
+    seed, cfg, train_data, valid_data, steps, batch, seq, device,
+    episode_mode=False, sampling="fixed",
+):
     random.seed(seed)
     torch.manual_seed(seed)
     if device.type == "cuda":
@@ -84,13 +100,22 @@ def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device, epis
     opt = torch.optim.AdamW(model.parameters(), lr=3e-4)
     history = []
     finite = True
+    curriculum = None
+    if episode_mode and sampling == "adaptive":
+        curriculum = Curriculum(skills=episode_skills(train_data))
+
     for step in range(1, steps + 1):
+        skill = None
+        sampled_rows = train_data
+        if curriculum is not None:
+            skill = curriculum.choose_skill(seed=seed + step)
+            sampled_rows = rows_for_skill(train_data, skill)
         x, y = (
-            make_episode_batch(train_data, batch, seq, device)
+            make_episode_batch(sampled_rows, batch, seq, device)
             if episode_mode
             else make_batch(train_data, batch, seq, device)
         )
-        _, loss = model(x, y)
+        logits, loss = model(x, y)
         if not torch.isfinite(loss):
             finite = False
             break
@@ -98,8 +123,15 @@ def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device, epis
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
+        if curriculum is not None and skill is not None:
+            # Better-than-uniform next-byte loss is a simple teacher-free pass signal.
+            passed = float(loss.detach()) < math.log(cfg.vocab_size)
+            curriculum.observe([Outcome(skill, passed)])
         if step == 1 or step == steps or step % max(1, steps // 5) == 0:
-            history.append({"step": step, "train_loss": float(loss.detach())})
+            record = {"step": step, "train_loss": float(loss.detach())}
+            if skill is not None:
+                record["skill"] = skill
+            history.append(record)
     if finite and episode_mode:
         model.eval()
         losses = []
@@ -112,7 +144,8 @@ def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device, epis
         val = sum(losses) / len(losses)
     else:
         val = evaluate(model, valid_data, batch, seq, device) if finite else float("inf")
-    return model, val, history, finite
+    curriculum_state = curriculum.state() if curriculum is not None else None
+    return model, val, history, finite, curriculum_state
 
 
 def main():
@@ -123,6 +156,10 @@ def main():
     p.add_argument("--device", default="auto")
     p.add_argument("--run-dir", default="runs/latest")
     p.add_argument("--episodes", help="episode manifest produced by scripts/ingest_manifest.py")
+    p.add_argument(
+        "--sampling", choices=("fixed", "adaptive"), default="fixed",
+        help="training episode sampling policy; validation is always frozen/uniform",
+    )
     args = p.parse_args()
 
     cfg = ModelConfig(context=max(128, args.seq))
@@ -142,13 +179,14 @@ def main():
     results, models = {}, {}
     scores = []
     for name, seed in (("A", 1337), ("B", 7331)):
-        model, val, history, finite = train_one(
+        model, val, history, finite, curriculum_state = train_one(
             seed, cfg, train_data, valid_data, args.steps, args.batch, args.seq, device,
-            episode_mode=episode_mode,
+            episode_mode=episode_mode, sampling=args.sampling,
         )
         models[name] = model
         results[name] = {
-            "seed": seed, "validation_loss": val, "history": history, "finite": finite
+            "seed": seed, "validation_loss": val, "history": history, "finite": finite,
+            "curriculum": curriculum_state,
         }
         scores.append(CandidateScore(name, val, 1.0, finite=finite))
 
@@ -168,6 +206,8 @@ def main():
         "objective": objective,
         "teacher_model": False,
         "episodes_manifest": args.episodes,
+        "sampling": args.sampling,
+        "validation_sampling": "frozen_uniform",
     }
     (run / "metrics.json").write_text(json.dumps(ledger, indent=2) + "\n")
     print(json.dumps(ledger, indent=2))
