@@ -76,6 +76,26 @@ def make_batch(data, batch, seq, device):
     return x, y
 
 
+def frozen_episode_batches(rows, batch, seq, seed, batches=8):
+    state = torch.random.get_rng_state()
+    try:
+        torch.manual_seed(seed)
+        return [make_episode_batch(rows, batch, seq, torch.device("cpu")) for _ in range(batches)]
+    finally:
+        torch.random.set_rng_state(state)
+
+
+@torch.no_grad()
+def evaluate_episode_batches(model, frozen_batches, device):
+    model.eval()
+    losses = []
+    for x, y in frozen_batches:
+        _, loss = model(x.to(device), y.to(device))
+        losses.append(float(loss))
+    model.train()
+    return sum(losses) / len(losses)
+
+
 @torch.no_grad()
 def evaluate(model, data, batch, seq, device, batches=8):
     model.eval()
@@ -133,15 +153,8 @@ def train_one(
                 record["skill"] = skill
             history.append(record)
     if finite and episode_mode:
-        model.eval()
-        losses = []
-        with torch.no_grad():
-            for _ in range(8):
-                x, y = make_episode_batch(valid_data, batch, seq, device)
-                _, loss = model(x, y)
-                losses.append(float(loss))
-        model.train()
-        val = sum(losses) / len(losses)
+        frozen = frozen_episode_batches(valid_data, batch, seq, seed=20261007, batches=8)
+        val = evaluate_episode_batches(model, frozen, device)
     else:
         val = evaluate(model, valid_data, batch, seq, device) if finite else float("inf")
     curriculum_state = curriculum.state() if curriculum is not None else None
