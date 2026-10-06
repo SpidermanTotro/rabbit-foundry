@@ -1,0 +1,15 @@
+{
+  "experiment": "adaptive-vs-fixed",
+  "compute_steps_per_arm": 1000,
+  "seeds": [1337, 7331, 2026],
+  "skills": ["code_prediction", "code_repair", "hidden_diff"],
+  "evaluation": {
+    "frozen": true,
+    "split": "test",
+    "primary_metric": "task_pass_rate"
+  },
+  "promotion": {
+    "require_finite_loss": true,
+    "require_equal_compute": true
+  }
+}
