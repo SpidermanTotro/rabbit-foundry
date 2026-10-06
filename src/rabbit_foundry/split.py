@@ -11,8 +11,15 @@ def split_bucket(key: str, buckets: int = 1000) -> int:
 
 
 def source_split(repository: str, commit: str, path: str) -> str:
-    """Stable source-level split so windows from one file cannot cross splits."""
-    bucket = split_bucket(f"{repository}@{commit}:{path}")
+    """Stable file-family split.
+
+    Commit is intentionally excluded from the split key. All revisions and
+    windows of the same repository/path therefore remain in one partition,
+    preventing historical variants of a file from leaking across train,
+    validation, and test.
+    """
+    del commit  # retained in the API because manifests record exact provenance
+    bucket = split_bucket(f"{repository}:{path}")
     if bucket < 800:
         return "train"
     if bucket < 900:
