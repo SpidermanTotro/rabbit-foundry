@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from .curriculum import Curriculum, Outcome
+from .bunny_import import load_bunny_episode_manifest\nfrom .curriculum import Curriculum, Outcome
 from .dataset import episode_tensors, load_episode_manifest
 from .greenlight import CandidateScore, decide
 from .model import ModelConfig, TinyRabbitLM
@@ -28,9 +28,10 @@ def bootstrap_stream():
     return tokens[:cut], tokens[cut:]
 
 
-def manifest_episodes(path: str):
-    train_rows = load_episode_manifest(path, "train")
-    valid_rows = load_episode_manifest(path, "validation")
+def manifest_episodes(path: str, kind: str = "github"):
+    loader = load_bunny_episode_manifest if kind == "bunny" else load_episode_manifest
+    train_rows = loader(path, "train")
+    valid_rows = loader(path, "validation")
     if not train_rows or not valid_rows:
         raise ValueError("manifest needs both train and validation source splits")
     return train_rows, valid_rows
@@ -168,7 +169,11 @@ def main():
     p.add_argument("--seq", type=int, default=64)
     p.add_argument("--device", default="auto")
     p.add_argument("--run-dir", default="runs/latest")
-    p.add_argument("--episodes", help="episode manifest produced by scripts/ingest_manifest.py")
+    p.add_argument("--episodes", help="episode manifest produced by a Foundry importer")
+    p.add_argument(
+        "--episode-kind", choices=("github", "bunny"), default="github",
+        help="manifest lineage: teacher-free GitHub episodes or Alpha/Space Bunny-derived episodes",
+    )
     p.add_argument(
         "--sampling", choices=("fixed", "adaptive"), default="fixed",
         help="training episode sampling policy; validation is always frozen/uniform",
@@ -178,12 +183,21 @@ def main():
     cfg = ModelConfig(context=max(128, args.seq))
     device = device_from(args.device)
     if args.episodes:
-        train_data, valid_data = manifest_episodes(args.episodes)
-        objective = "pinned GitHub episode next-byte prediction"
+        train_data, valid_data = manifest_episodes(args.episodes, args.episode_kind)
+        if args.episode_kind == "bunny":
+            objective = "Alpha/Space Bunny lineage next-byte behavior modeling"
+            lineage = "alpha-space-bunny"
+            teacher_free_native = False
+        else:
+            objective = "pinned GitHub episode next-byte prediction"
+            lineage = "rabbit-native"
+            teacher_free_native = True
         episode_mode = True
     else:
         train_data, valid_data = bootstrap_stream()
         objective = "next-byte prediction bootstrap"
+        lineage = "rabbit-native-bootstrap"
+        teacher_free_native = True
         episode_mode = False
 
     run = Path(args.run_dir)
@@ -218,6 +232,9 @@ def main():
         "promotion": asdict(decision),
         "objective": objective,
         "teacher_model": False,
+        "teacher_free_native_experiment": teacher_free_native,
+        "lineage": lineage,
+        "episode_kind": args.episode_kind if args.episodes else None,
         "episodes_manifest": args.episodes,
         "sampling": args.sampling,
         "validation_sampling": "frozen_uniform",
