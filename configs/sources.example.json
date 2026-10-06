@@ -1,0 +1,14 @@
+{
+  "sources": [
+    {
+      "repository": "OWNER/REPOSITORY",
+      "commit": "FULL_COMMIT_SHA",
+      "license": "MIT"
+    }
+  ],
+  "policy": {
+    "read_only": true,
+    "execute_on_host": false,
+    "allowed_licenses": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause"]
+  }
+}
