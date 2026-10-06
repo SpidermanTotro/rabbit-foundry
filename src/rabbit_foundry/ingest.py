@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from .code_tasks import corrupt_lines
 from .episodes import next_byte_episodes
 from .provenance import ProvenanceLedger, SourceRecord
 from .sources import RepositorySource, is_training_path
@@ -60,24 +61,70 @@ def ingest_file(
     )
 
 
-def build_episode_manifest(files: list[IngestedFile], out: Path, window: int = 128) -> dict:
+def _row(episode_id, skill, repository, commit, path, prompt: bytes, target: bytes) -> dict:
+    return {
+        "episode_id": episode_id,
+        "skill": skill,
+        "source_repository": repository,
+        "source_commit": commit,
+        "source_path": path,
+        "prompt_hex": prompt.hex(),
+        "target_hex": target.hex(),
+    }
+
+
+def build_episode_manifest(
+    files: list[IngestedFile],
+    out: Path,
+    window: int = 128,
+    *,
+    include_repairs: bool = True,
+) -> dict:
     rows = []
     for item in files:
         content = Path(item.cache_path).read_bytes()
         for ep in next_byte_episodes(
             item.repository, item.commit, item.path, content, window=window
         ):
-            rows.append({
-                "episode_id": ep.episode_id,
-                "skill": ep.skill,
-                "source_repository": ep.source_repository,
-                "source_commit": ep.source_commit,
-                "source_path": ep.source_path,
-                "prompt_hex": ep.prompt.hex(),
-                "target_hex": ep.target.hex(),
-            })
+            rows.append(_row(
+                ep.episode_id, ep.skill, ep.source_repository, ep.source_commit,
+                ep.source_path, ep.prompt, ep.target,
+            ))
 
-    payload = {"version": 1, "window": window, "episodes": rows}
+        if include_repairs:
+            try:
+                text = content.decode("utf-8")
+            except UnicodeDecodeError:
+                text = None
+            if text is not None:
+                repair = corrupt_lines(
+                    item.repository, item.commit, item.path, text,
+                    seed=int(item.sha256[:16], 16),
+                )
+                if repair is not None:
+                    broken = repair.broken.encode("utf-8")
+                    target = repair.target.encode("utf-8")
+                    usable = min(len(broken), len(target))
+                    if usable >= window:
+                        # Byte-aligned slices keep the current LM objective valid:
+                        # each target position is the desired repaired byte.
+                        for start in range(0, usable - window + 1, window):
+                            rows.append(_row(
+                                f"{repair.episode_id}-{start:08x}",
+                                repair.skill,
+                                repair.source_repository,
+                                repair.source_commit,
+                                repair.source_path,
+                                broken[start:start + window],
+                                target[start:start + window],
+                            ))
+
+    payload = {
+        "version": 2,
+        "window": window,
+        "skills": sorted({row["skill"] for row in rows}),
+        "episodes": rows,
+    }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2) + "\n")
     return payload
