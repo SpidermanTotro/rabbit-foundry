@@ -1,12 +1,13 @@
 {
-  "experiment": "adaptive-vs-fixed",
-  "compute_steps_per_arm": 1000,
+  "experiment": "fixed-vs-adaptive-three-skill",
+  "compute_steps_per_seed": 1000,
   "seeds": [1337, 7331, 2026],
   "skills": ["code_prediction", "code_repair", "hidden_diff"],
   "evaluation": {
     "frozen": true,
-    "split": "test",
-    "primary_metric": "task_pass_rate"
+    "split": "validation",
+    "primary_metric": "mean_validation_loss",
+    "lower_is_better": true
   },
   "promotion": {
     "require_finite_loss": true,
