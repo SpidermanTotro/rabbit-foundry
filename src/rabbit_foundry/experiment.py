@@ -51,15 +51,24 @@ def run_arm(name, sampling, seeds, cfg, train_rows, valid_rows, steps, batch, se
     )
 
 
-def choose_winner(results):
+def choose_winner(results, minimum_relative_improvement: float = 0.0):
     eligible = [r for r in results if r.finite]
     if not eligible:
         return None
-    # Lower held-out loss is better. Equal compute is enforced by construction.
-    return min(eligible, key=lambda r: r.validation_loss).name
+    best = min(eligible, key=lambda r: r.validation_loss)
+    if minimum_relative_improvement <= 0 or len(eligible) < 2:
+        return best.name
+    runner_up = sorted(eligible, key=lambda r: r.validation_loss)[1]
+    if runner_up.validation_loss <= 0:
+        return None
+    relative = (runner_up.validation_loss - best.validation_loss) / runner_up.validation_loss
+    return best.name if relative >= minimum_relative_improvement else None
 
 
-def run_experiment(episodes, out, *, steps=100, batch=8, seq=64, seeds=(1337, 7331, 2026), device_name="auto"):
+def run_experiment(
+    episodes, out, *, steps=100, batch=8, seq=64, seeds=(1337, 7331, 2026),
+    device_name="auto", minimum_relative_improvement=0.0,
+):
     train_rows, valid_rows = manifest_episodes(episodes)
     skills = sorted({row.get("skill", "code_prediction") for row in train_rows})
     required = {"code_prediction", "code_repair", "hidden_diff"}
@@ -86,7 +95,8 @@ def run_experiment(episodes, out, *, steps=100, batch=8, seq=64, seeds=(1337, 73
         "validation_sampling": "frozen_uniform",
         "primary_metric": "mean_validation_loss",
         "results": [asdict(r) for r in results],
-        "winner": choose_winner(results),
+        "minimum_relative_improvement": minimum_relative_improvement,
+        "winner": choose_winner(results, minimum_relative_improvement),
     }
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -103,6 +113,10 @@ def main():
     p.add_argument("--seq", type=int, default=64)
     p.add_argument("--device", default="auto")
     p.add_argument("--seeds", default="1337,7331,2026")
+    p.add_argument(
+        "--minimum-relative-improvement", type=float, default=0.0,
+        help="require this fractional held-out loss improvement before declaring a winner",
+    )
     args = p.parse_args()
     seeds = tuple(int(x) for x in args.seeds.split(",") if x.strip())
     if not seeds:
@@ -110,6 +124,7 @@ def main():
     payload = run_experiment(
         args.episodes, args.out, steps=args.steps, batch=args.batch, seq=args.seq,
         seeds=seeds, device_name=args.device,
+        minimum_relative_improvement=args.minimum_relative_improvement,
     )
     print(json.dumps(payload, indent=2))
 
