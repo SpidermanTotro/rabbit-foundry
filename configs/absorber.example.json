@@ -1,0 +1,28 @@
+{
+  "mode": "dry-run",
+  "rabbit": {
+    "endpoint": "http://127.0.0.1:8765/v1",
+    "model": "rabbit-local",
+    "minimum_confidence": 0.55
+  },
+  "fallback": {
+    "enabled": false,
+    "provider": "ollama",
+    "model": "qwen2.5-coder:7b",
+    "endpoint": "http://127.0.0.1:11434/v1"
+  },
+  "permissions": {
+    "read": "allow",
+    "search": "allow",
+    "edit": "deny",
+    "shell": "deny",
+    "network": "deny",
+    "external_directory": "deny"
+  },
+  "logging": {
+    "record_prompts": true,
+    "record_routes": true,
+    "record_tool_requests": true,
+    "record_tool_results": false
+  }
+}
