@@ -21,6 +21,8 @@ def test_alpha_holdout_requires_exact_frozen_set(tmp_path):
     assert payload["source_rows"] == 6
     assert payload["training_allowed"] is False
     assert payload["episodes"]
+    assert set(payload["episode_coverage"]) == set(ALPHA_HOLDOUT_IDS)
+    assert all(count > 0 for count in payload["episode_coverage"].values())
     assert all(e["evaluation_only"] for e in payload["episodes"])
     assert all(e["split"] == "alpha_frozen_holdout" for e in payload["episodes"])
 
@@ -29,4 +31,13 @@ def test_alpha_holdout_rejects_incomplete_set(tmp_path):
     path = tmp_path / "holdout.jsonl"
     path.write_text(json.dumps(row("011-partial-failure")) + "\n")
     with pytest.raises(ValueError, match="Alpha holdout mismatch"):
+        build_alpha_holdout_manifest(path, window=16)
+
+
+def test_alpha_holdout_rejects_uncovered_short_case(tmp_path):
+    rows = [row(x) for x in sorted(ALPHA_HOLDOUT_IDS)]
+    rows[0]["messages"] = [{"role": "assistant", "content": "tiny"}]
+    path = tmp_path / "holdout-short.jsonl"
+    path.write_text("".join(json.dumps(item) + "\n" for item in rows))
+    with pytest.raises(ValueError, match="no evaluation episodes"):
         build_alpha_holdout_manifest(path, window=16)
