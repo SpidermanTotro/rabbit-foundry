@@ -31,3 +31,13 @@ def test_three_skill_experiment_rejects_incomplete_manifest(tmp_path):
     )
     with pytest.raises(ValueError, match="missing training skills"):
         run_experiment(manifest, tmp_path / "result.json", steps=1, batch=1, seq=8, seeds=(1,), device_name="cpu")
+
+
+def test_winner_threshold_rejects_tiny_difference():
+    results = [arm("fixed", 0.4000), arm("adaptive", 0.3999)]
+    assert choose_winner(results, minimum_relative_improvement=0.01) is None
+
+
+def test_winner_threshold_accepts_material_difference():
+    results = [arm("fixed", 0.40), arm("adaptive", 0.35)]
+    assert choose_winner(results, minimum_relative_improvement=0.01) == "adaptive"
