@@ -2,7 +2,12 @@ import json
 
 import pytest
 
-from rabbit_foundry.bunny_import import (\n    deterministic_bunny_split,\n    import_bunny_jsonl,\n    load_bunny_episode_manifest,\n)
+from rabbit_foundry.bunny_import import (
+    bunny_family_id,
+    deterministic_bunny_split,
+    import_bunny_jsonl,
+    load_bunny_episode_manifest,
+)
 
 
 def write_rows(path, rows):
@@ -38,24 +43,39 @@ def test_import_refuses_alpha_holdout(tmp_path):
         import_bunny_jsonl(src, window=16)
 
 
-def test_bunny_manifest_has_deterministic_disjoint_splits(tmp_path):
+def test_bunny_manifest_keeps_capture_families_in_one_split(tmp_path):
     src = tmp_path / "alpha.jsonl"
-    write_rows(src, [{
-        "id": "003-self-correct-midstream",
-        "messages": [{"role": "assistant", "content": "behavior " * 200}],
-    }])
+    write_rows(src, [
+        {
+            "id": f"capture-{i}",
+            "messages": [{"role": "assistant", "content": ("behavior-%d " % i) * 200}],
+        }
+        for i in range(30)
+    ])
     payload = import_bunny_jsonl(src, window=16)
     manifest = tmp_path / "episodes.json"
     manifest.write_text(json.dumps(payload))
+
     groups = {
-        name: {r["episode_id"] for r in load_bunny_episode_manifest(manifest, name)}
+        name: load_bunny_episode_manifest(manifest, name)
         for name in ("train", "validation", "test")
     }
-    assert groups["train"].isdisjoint(groups["validation"])
-    assert groups["train"].isdisjoint(groups["test"])
-    assert groups["validation"].isdisjoint(groups["test"])
-    assert set().union(*groups.values()) == {r["episode_id"] for r in payload["episodes"]}
-    assert all(deterministic_bunny_split(eid) in groups for eid in set().union(*groups.values()))
+    episode_sets = {
+        name: {row["episode_id"] for row in rows}
+        for name, rows in groups.items()
+    }
+    assert episode_sets["train"].isdisjoint(episode_sets["validation"])
+    assert episode_sets["train"].isdisjoint(episode_sets["test"])
+    assert episode_sets["validation"].isdisjoint(episode_sets["test"])
+    assert set().union(*episode_sets.values()) == {r["episode_id"] for r in payload["episodes"]}
+
+    capture_splits = {}
+    for split, rows in groups.items():
+        for row in rows:
+            capture_splits.setdefault(row["source_capture_id"], set()).add(split)
+            assert deterministic_bunny_split(bunny_family_id(row)) == split
+    assert capture_splits
+    assert all(len(splits) == 1 for splits in capture_splits.values())
 
 
 def test_alpha_axis_becomes_curriculum_skill(tmp_path):
