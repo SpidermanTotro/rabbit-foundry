@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # DreamRabbit inference server
+  dreamrabbit:
+    build: .
+    container_name: dreamrabbit-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./checkpoints:/workspace/checkpoints:ro
+      - ./models:/workspace/models:ro
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONPATH=/workspace/src
+    command: >
+      python -m src.inference_server
+      /workspace/checkpoints/dreamrabbit-latest
+      --port 8080
+      --device auto
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/models"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Ollama for comparison models
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Sandboxed evaluator - no network, resource limited
+  evaluator:
+    build: .
+    container_name: dreamrabbit-evaluator
+    volumes:
+      - ./checkpoints:/workspace/checkpoints:ro
+      - ./eval:/workspace/eval:rw
+    environment:
+      - PYTHONPATH=/workspace/src
+    command: python -m src.evaluate
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    network_mode: "none"  # No network access for security
+    depends_on:
+      - dreamrabbit
+
+  # Training worker
+  trainer:
+    build: .
+    container_name: dreamrabbit-trainer
+    volumes:
+      - ./checkpoints:/workspace/checkpoints:rw
+      - ./data:/workspace/data:ro
+      - ./logs:/workspace/logs:rw
+    environment:
+      - PYTHONPATH=/workspace/src
+      - WANDB_API_KEY=${WANDB_API_KEY}
+    command: python -m src.train
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  ollama-data:

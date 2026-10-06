@@ -1,0 +1,32 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "model": "openrouter/openrouter-auto",
+  "small_model": "openrouter/openrouter-auto",
+  "provider": {
+    "openrouter": {
+      "options": {
+        "apiKey": "${OPENROUTER_API_KEY}",
+        "baseURL": "https://openrouter.ai/api/v1"
+      }
+    },
+    "ollama": {
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      }
+    },
+    "local-dreamrabbit": {
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "apiKey": "not-needed"
+      },
+      "models": {
+        "dreamrabbit": { "name": "DreamRabbit Local" }
+      }
+    }
+  },
+  "enabled_providers": ["local-dreamrabbit", "ollama", "openrouter"],
+  "default_agent": "code",
+  "instructions": [
+    "AGENTS.md"
+  ]
+}
