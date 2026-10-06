@@ -56,3 +56,15 @@ def test_bunny_manifest_has_deterministic_disjoint_splits(tmp_path):
     assert groups["validation"].isdisjoint(groups["test"])
     assert set().union(*groups.values()) == {r["episode_id"] for r in payload["episodes"]}
     assert all(deterministic_bunny_split(eid) in groups for eid in set().union(*groups.values()))
+
+
+def test_alpha_axis_becomes_curriculum_skill(tmp_path):
+    src = tmp_path / "axis.jsonl"
+    write_rows(src, [{
+        "id": "003-self-correct-midstream",
+        "axis": "selfcorr",
+        "messages": [{"role": "assistant", "content": "revise hypothesis " * 40}],
+    }])
+    payload = import_bunny_jsonl(src, window=16)
+    assert {e["skill"] for e in payload["episodes"]} == {"bunny_selfcorr"}
+    assert {e["bunny_axis"] for e in payload["episodes"]} == {"selfcorr"}
