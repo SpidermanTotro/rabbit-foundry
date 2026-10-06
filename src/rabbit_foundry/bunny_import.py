@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+
+from .bunny_lineage import load_jsonl_training
+
+
+def sha256_file(path: str | Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def message_text(row: dict) -> str:
+    messages = row.get("messages")
+    if not isinstance(messages, list) or not messages:
+        raise ValueError("Bunny training row needs a non-empty messages list")
+    parts = []
+    for message in messages:
+        if not isinstance(message, dict):
+            raise ValueError("message must be an object")
+        role = message.get("role")
+        content = message.get("content")
+        if not isinstance(role, str) or not isinstance(content, str):
+            raise ValueError("message needs string role and content")
+        parts.append(f"<|{role}|>\n{content}\n")
+    return "".join(parts)
+
+
+def bunny_rows_to_episodes(rows: list[dict], source_sha256: str, source_name: str, window: int = 128):
+    if window < 2:
+        raise ValueError("window must be >= 2")
+    episodes = []
+    for row_index, row in enumerate(rows):
+        stream = message_text(row).encode("utf-8")
+        if len(stream) <= window:
+            continue
+        capture_id = row.get("id") or row.get("capture_id") or f"row-{row_index}"
+        for start in range(0, len(stream) - window, window):
+            chunk = stream[start:start + window + 1]
+            if len(chunk) < window + 1:
+                continue
+            episode_id = hashlib.sha256(
+                f"{source_sha256}:{capture_id}:{start}".encode()
+            ).hexdigest()
+            episodes.append({
+                "episode_id": episode_id,
+                "skill": "bunny_behavior",
+                "lineage": "alpha-space-bunny",
+                "source_name": source_name,
+                "source_sha256": source_sha256,
+                "source_capture_id": str(capture_id),
+                "prompt_hex": chunk[:-1].hex(),
+                "target_hex": chunk[1:].hex(),
+            })
+    return episodes
+
+
+def import_bunny_jsonl(path: str | Path, window: int = 128) -> dict:
+    path = Path(path)
+    rows = load_jsonl_training(path)
+    digest = sha256_file(path)
+    episodes = bunny_rows_to_episodes(rows, digest, path.name, window=window)
+    return {
+        "version": 1,
+        "kind": "bunny-lineage-episodes",
+        "teacher_free_native_experiment": False,
+        "source_path": str(path),
+        "source_sha256": digest,
+        "source_rows": len(rows),
+        "episodes": episodes,
+    }
+
+
+def write_bunny_manifest(source: str | Path, out: str | Path, window: int = 128) -> dict:
+    payload = import_bunny_jsonl(source, window=window)
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    return payload
