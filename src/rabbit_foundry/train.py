@@ -26,17 +26,32 @@ def bootstrap_stream():
     return tokens[:cut], tokens[cut:]
 
 
-def manifest_stream(path: str):
+def manifest_episodes(path: str):
     train_rows = load_episode_manifest(path, "train")
     valid_rows = load_episode_manifest(path, "validation")
     if not train_rows or not valid_rows:
         raise ValueError("manifest needs both train and validation source splits")
+    return train_rows, valid_rows
 
-    def flatten(rows):
-        chunks = [episode_tensors(row)[0] for row in rows]
-        return torch.cat(chunks)
 
-    return flatten(train_rows), flatten(valid_rows)
+def make_episode_batch(rows, batch, seq, device):
+    eligible = []
+    for row in rows:
+        x, y = episode_tensors(row)
+        usable = min(len(x), len(y))
+        if usable >= seq:
+            eligible.append((x, y, usable))
+    if not eligible:
+        raise ValueError("no episode is long enough for the requested sequence length")
+
+    picks = torch.randint(0, len(eligible), (batch,))
+    xs, ys = [], []
+    for pick in picks.tolist():
+        x, y, usable = eligible[pick]
+        start = int(torch.randint(0, usable - seq + 1, (1,)).item())
+        xs.append(x[start:start + seq])
+        ys.append(y[start:start + seq])
+    return torch.stack(xs).to(device), torch.stack(ys).to(device)
 
 
 def make_batch(data, batch, seq, device):
@@ -60,7 +75,7 @@ def evaluate(model, data, batch, seq, device, batches=8):
     return sum(losses) / len(losses)
 
 
-def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device):
+def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device, episode_mode=False):
     random.seed(seed)
     torch.manual_seed(seed)
     if device.type == "cuda":
@@ -70,7 +85,11 @@ def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device):
     history = []
     finite = True
     for step in range(1, steps + 1):
-        x, y = make_batch(train_data, batch, seq, device)
+        x, y = (
+            make_episode_batch(train_data, batch, seq, device)
+            if episode_mode
+            else make_batch(train_data, batch, seq, device)
+        )
         _, loss = model(x, y)
         if not torch.isfinite(loss):
             finite = False
@@ -81,7 +100,18 @@ def train_one(seed, cfg, train_data, valid_data, steps, batch, seq, device):
         opt.step()
         if step == 1 or step == steps or step % max(1, steps // 5) == 0:
             history.append({"step": step, "train_loss": float(loss.detach())})
-    val = evaluate(model, valid_data, batch, seq, device) if finite else float("inf")
+    if finite and episode_mode:
+        model.eval()
+        losses = []
+        with torch.no_grad():
+            for _ in range(8):
+                x, y = make_episode_batch(valid_data, batch, seq, device)
+                _, loss = model(x, y)
+                losses.append(float(loss))
+        model.train()
+        val = sum(losses) / len(losses)
+    else:
+        val = evaluate(model, valid_data, batch, seq, device) if finite else float("inf")
     return model, val, history, finite
 
 
@@ -98,11 +128,13 @@ def main():
     cfg = ModelConfig(context=max(128, args.seq))
     device = device_from(args.device)
     if args.episodes:
-        train_data, valid_data = manifest_stream(args.episodes)
-        objective = "pinned GitHub next-byte prediction"
+        train_data, valid_data = manifest_episodes(args.episodes)
+        objective = "pinned GitHub episode next-byte prediction"
+        episode_mode = True
     else:
         train_data, valid_data = bootstrap_stream()
         objective = "next-byte prediction bootstrap"
+        episode_mode = False
 
     run = Path(args.run_dir)
     run.mkdir(parents=True, exist_ok=True)
@@ -111,7 +143,8 @@ def main():
     scores = []
     for name, seed in (("A", 1337), ("B", 7331)):
         model, val, history, finite = train_one(
-            seed, cfg, train_data, valid_data, args.steps, args.batch, args.seq, device
+            seed, cfg, train_data, valid_data, args.steps, args.batch, args.seq, device,
+            episode_mode=episode_mode,
         )
         models[name] = model
         results[name] = {
