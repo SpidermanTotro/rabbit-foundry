@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "name": "rabbit-foundry-unified-bunny-lineage",
+  "policy": {
+    "copy_weights_into_git": false,
+    "preserve_original_artifacts": true,
+    "alpha_weight_extraction": false,
+    "training_holdout_separation_required": true,
+    "rabbit_native_promotion_requires_greenlight": true
+  },
+  "lineages": [
+    {
+      "id": "alpha-bunny",
+      "kind": "behavior_benchmark",
+      "status": "preserved-observable-behavior",
+      "weight_access": "unavailable-api-only",
+      "fingerprint": "ALPHA-FINGERPRINT-v1",
+      "coverage": [
+        "coding",
+        "debugging",
+        "tool_choice",
+        "failure_recovery",
+        "self_correction",
+        "hypothesis_revision",
+        "regression_testing",
+        "writing_style",
+        "long_context"
+      ],
+      "reuse_in_rabbit": [
+        "frozen_evaluation_benchmark",
+        "behavioral_trajectory_dataset_candidates",
+        "agent_failure_and_recovery_taxonomy"
+      ],
+      "prohibited": [
+        "claiming_alpha_weights_are_owned",
+        "weight_extraction_or_bypass",
+        "mixing_holdout_fingerprint_cases into training"
+      ]
+    },
+    {
+      "id": "space-bunny",
+      "kind": "local_model_lineage",
+      "status": "locally-preserved",
+      "known_provenance": {
+        "base_model": "Qwen/Qwen3-4B-Instruct-2507",
+        "adapter": "/home/henriclovelisaheart/SpaceBunny-Alpha/04-run-artifacts/checkpoint-53-adapter",
+        "merged_model": "/home/henriclovelisaheart/SpaceBunny-Alpha/06-model/bunny-qwen3-4b-ep1-merged",
+        "provenance": "/home/henriclovelisaheart/SpaceBunny-Alpha/06-model/bunny-qwen3-4b-ep1-merged/PROVENANCE.json",
+        "parameters": 4022468096,
+        "dtype": "bfloat16"
+      },
+      "known_exports": [
+        "/home/henriclovelisaheart/spacebunny-clone/out/v14-4b/kilo-4b-v14-4b-f16.gguf",
+        "/home/henriclovelisaheart/spacebunny-clone/out/v14-4b/kilo-4b-v14-4b-q4km.gguf"
+      ],
+      "reuse_in_rabbit": [
+        "baseline_model",
+        "deployment_and_gguf_reference",
+        "behavior_comparison",
+        "training_pipeline_provenance_reference"
+      ],
+      "not_rabbit_native": true
+    },
+    {
+      "id": "rabbit-foundry",
+      "kind": "native_research_lineage",
+      "status": "active",
+      "initialization": "random",
+      "teacher_model": false,
+      "skills": [
+        "code_prediction",
+        "code_repair",
+        "hidden_diff"
+      ],
+      "evaluation": {
+        "file_family_split": true,
+        "frozen_validation": true,
+        "fixed_vs_adaptive_equal_compute": true
+      },
+      "promotion": "greenlight"
+    }
+  ]
+}
