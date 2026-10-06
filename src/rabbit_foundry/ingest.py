@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from .code_tasks import corrupt_lines
+from .code_tasks import corrupt_lines, hidden_diff
 from .episodes import next_byte_episodes
 from .provenance import ProvenanceLedger, SourceRecord
 from .sources import RepositorySource, is_training_path
@@ -61,8 +61,11 @@ def ingest_file(
     )
 
 
-def _row(episode_id, skill, repository, commit, path, prompt: bytes, target: bytes) -> dict:
-    return {
+def _row(
+    episode_id, skill, repository, commit, path, prompt: bytes, target: bytes,
+    *, source_before_commit: str | None = None,
+) -> dict:
+    row = {
         "episode_id": episode_id,
         "skill": skill,
         "source_repository": repository,
@@ -71,6 +74,53 @@ def _row(episode_id, skill, repository, commit, path, prompt: bytes, target: byt
         "prompt_hex": prompt.hex(),
         "target_hex": target.hex(),
     }
+    if source_before_commit is not None:
+        row["source_before_commit"] = source_before_commit
+    return row
+
+
+def _hidden_diff_rows(files: list[IngestedFile], window: int) -> list[dict]:
+    by_file: dict[tuple[str, str], list[IngestedFile]] = {}
+    for item in files:
+        by_file.setdefault((item.repository, item.path), []).append(item)
+
+    rows = []
+    for (repository, path), revisions in sorted(by_file.items()):
+        # Caller order is the chronology contract: manifests should pass revisions
+        # oldest -> newest. We pair adjacent revisions and preserve both SHAs.
+        for before_item, after_item in zip(revisions, revisions[1:]):
+            if before_item.commit == after_item.commit:
+                continue
+            try:
+                before = Path(before_item.cache_path).read_text()
+                after = Path(after_item.cache_path).read_text()
+            except UnicodeDecodeError:
+                continue
+            episode = hidden_diff(
+                repository,
+                before_item.commit,
+                after_item.commit,
+                path,
+                before,
+                after,
+            )
+            if episode is None:
+                continue
+            prompt = episode.broken.encode("utf-8")
+            target = episode.target.encode("utf-8")
+            usable = min(len(prompt), len(target))
+            for start in range(0, usable - window + 1, window):
+                rows.append(_row(
+                    f"{episode.episode_id}-{start:08x}",
+                    episode.skill,
+                    episode.source_repository,
+                    after_item.commit,
+                    episode.source_path,
+                    prompt[start:start + window],
+                    target[start:start + window],
+                    source_before_commit=before_item.commit,
+                ))
+    return rows
 
 
 def build_episode_manifest(
@@ -79,6 +129,7 @@ def build_episode_manifest(
     window: int = 128,
     *,
     include_repairs: bool = True,
+    include_hidden_diffs: bool = True,
 ) -> dict:
     rows = []
     for item in files:
@@ -118,6 +169,9 @@ def build_episode_manifest(
                                 broken[start:start + window],
                                 target[start:start + window],
                             ))
+
+    if include_hidden_diffs:
+        rows.extend(_hidden_diff_rows(files, window))
 
     payload = {
         "version": 2,
