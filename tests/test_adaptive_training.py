@@ -24,7 +24,7 @@ def test_adaptive_training_records_curriculum_without_changing_validation_policy
         row("code_repair", 66),
         row("hidden_diff", 67),
     ]
-    cfg = ModelConfig(vocab_size=256, context=8, d_model=16, heads=2, layers=1, d_ff=32)
+    cfg = ModelConfig(vocab_size=256, context=8, d_model=16, n_heads=2, n_layers=1, d_ff=32)
     _, val, history, finite, state = train_one(
         123, cfg, rows, rows, steps=3, batch=1, seq=8, device=torch.device("cpu"),
         episode_mode=True, sampling="adaptive",
@@ -38,7 +38,7 @@ def test_adaptive_training_records_curriculum_without_changing_validation_policy
 
 def test_fixed_training_has_no_adaptive_curriculum_state():
     rows = [row("code_prediction", 65)]
-    cfg = ModelConfig(vocab_size=256, context=8, d_model=16, heads=2, layers=1, d_ff=32)
+    cfg = ModelConfig(vocab_size=256, context=8, d_model=16, n_heads=2, n_layers=1, d_ff=32)
     _, _, _, finite, state = train_one(
         123, cfg, rows, rows, steps=1, batch=1, seq=8, device=torch.device("cpu"),
         episode_mode=True, sampling="fixed",

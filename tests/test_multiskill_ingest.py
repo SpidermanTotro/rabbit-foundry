@@ -42,6 +42,6 @@ def test_repair_generation_can_be_disabled(tmp_path: Path):
         cache_path=str(source),
     )
     payload = build_episode_manifest(
-        [item], tmp_path / "episodes.json", window=4, include_repairs=False
+        [item], tmp_path / "episodes.json", window=8, include_repairs=False
     )
     assert payload["skills"] == ["code_prediction"]
