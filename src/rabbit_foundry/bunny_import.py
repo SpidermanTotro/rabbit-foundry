@@ -36,6 +36,8 @@ def bunny_rows_to_episodes(rows: list[dict], source_sha256: str, source_name: st
         if len(stream) <= window:
             continue
         capture_id = row.get("id") or row.get("capture_id") or f"row-{row_index}"
+        axis = row.get("axis")
+        skill = f"bunny_{axis}" if isinstance(axis, str) and axis.strip() else "bunny_behavior"
         for start in range(0, len(stream) - window, window):
             chunk = stream[start:start + window + 1]
             if len(chunk) < window + 1:
@@ -45,7 +47,8 @@ def bunny_rows_to_episodes(rows: list[dict], source_sha256: str, source_name: st
             ).hexdigest()
             episodes.append({
                 "episode_id": episode_id,
-                "skill": "bunny_behavior",
+                "skill": skill,
+                "bunny_axis": axis if isinstance(axis, str) and axis.strip() else None,
                 "lineage": "alpha-space-bunny",
                 "source_name": source_name,
                 "source_sha256": source_sha256,
