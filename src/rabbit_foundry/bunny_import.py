@@ -83,8 +83,19 @@ def write_bunny_manifest(source: str | Path, out: str | Path, window: int = 128)
     return payload
 
 
-def deterministic_bunny_split(episode_id: str) -> str:
-    bucket = int(episode_id[:16], 16) % 1000
+def bunny_family_id(row: dict) -> str:
+    """Stable family key that keeps every chunk from one capture together."""
+    source_sha256 = row.get("source_sha256")
+    capture_id = row.get("source_capture_id")
+    if not isinstance(source_sha256, str) or not source_sha256:
+        raise ValueError("Bunny episode is missing source_sha256")
+    if not isinstance(capture_id, str) or not capture_id:
+        raise ValueError("Bunny episode is missing source_capture_id")
+    return hashlib.sha256(f"{source_sha256}:{capture_id}".encode()).hexdigest()
+
+
+def deterministic_bunny_split(family_id: str) -> str:
+    bucket = int(family_id[:16], 16) % 1000
     if bucket < 800:
         return "train"
     if bucket < 900:
@@ -100,5 +111,5 @@ def load_bunny_episode_manifest(path: str | Path, split: str) -> list[dict]:
         raise ValueError("split must be train, validation, or test")
     return [
         row for row in payload["episodes"]
-        if deterministic_bunny_split(row["episode_id"]) == split
+        if deterministic_bunny_split(bunny_family_id(row)) == split
     ]
