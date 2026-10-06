@@ -9,7 +9,8 @@ from pathlib import Path
 
 import torch
 
-from .bunny_import import load_bunny_episode_manifest\nfrom .curriculum import Curriculum, Outcome
+from .bunny_import import load_bunny_episode_manifest
+from .curriculum import Curriculum, Outcome
 from .dataset import episode_tensors, load_episode_manifest
 from .greenlight import CandidateScore, decide
 from .model import ModelConfig, TinyRabbitLM
