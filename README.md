@@ -12,7 +12,7 @@ The native experiment starts from random weights and does not require pretrained
 - deterministic code repair
 - hidden revision differences
 
-TwinTrain compares candidates with frozen held-out evaluation, Greenlight promotion, and fixed-vs-adaptive equal-compute experiments.
+TwinTrain compares candidates with frozen held-out evaluation, Greenlight promotion, and fixed-vs-adaptive equal-compute experiments. Hidden-diff byte training is deliberately restricted to equal-length changed spans so insertions/deletions cannot create false offset-aligned labels.
 
 ### Alpha / Space Bunny lineage
 
@@ -55,6 +55,21 @@ python -m rabbit_foundry.train \
 
 Outputs are written beneath `runs/`.
 
+### Run the Rabbit-native fixed-vs-adaptive experiment
+
+```bash
+python -m rabbit_foundry.experiment \
+  --episodes runs/episodes.json \
+  --out runs/experiments/fixed-vs-adaptive.json \
+  --steps 100 \
+  --batch 8 \
+  --seq 64 \
+  --minimum-relative-improvement 0.01 \
+  --device auto
+```
+
+The optional improvement threshold prevents a numerically tiny held-out loss difference from being reported as a meaningful winner.
+
 ## Current capability
 
 - [x] Tiny causal LM
@@ -77,6 +92,7 @@ Outputs are written beneath `runs/`.
 - [ ] Import and hash the real local Bunny training corpus into a run manifest
 - [x] Preserve per-row Bunny axes (code/debug/persona/selfcorr/tool) in curriculum
 - [x] Frozen Alpha holdout evaluation manifest with exact-set and per-case coverage guards
-- [ ] Space Bunny checkpoint/GGUF registry verification
+- [x] Space Bunny checkpoint/GGUF structural inventory (directory stats, provenance JSON, GGUF magic)
+- [ ] Run the Space Bunny inventory against the real local artifacts and record hashes
 - [ ] Rabbit-native GGUF conversion adapter
 - [ ] llama.cpp post-export verification
