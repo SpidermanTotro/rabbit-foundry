@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "rabbit-foundry-unified-bunny-lineage",
   "policy": {
     "copy_weights_into_git": false,
@@ -11,36 +11,59 @@
   "lineages": [
     {
       "id": "alpha-bunny",
-      "kind": "behavior_benchmark",
+      "kind": "behavioral-source-lineage",
       "status": "preserved-observable-behavior",
       "weight_access": "unavailable-api-only",
-      "fingerprint": "ALPHA-FINGERPRINT-v1",
-      "coverage": [
-        "coding",
-        "debugging",
-        "tool_choice",
-        "failure_recovery",
-        "self_correction",
-        "hypothesis_revision",
-        "regression_testing",
-        "writing_style",
-        "long_context"
-      ],
+      "capture_audit": {
+        "captured": 34,
+        "integrity_failures": 0,
+        "unusable": 1,
+        "eligible": 33,
+        "training": 27,
+        "holdout": 6,
+        "training_axes": ["code", "debug", "persona", "selfcorr", "tool"]
+      },
+      "known_training_dataset": {
+        "rows": 27,
+        "path": "/home/henriclovelisaheart/SpaceBunny-Alpha/03-dataset/derived-training/alpha-fingerprint-20261006/alpha_fingerprint.jsonl"
+      },
+      "known_holdout_dataset": {
+        "rows": 6,
+        "path": "/home/henriclovelisaheart/SpaceBunny-Alpha/03-dataset/derived-training/alpha-fingerprint-20261006/alpha_fingerprint.holdout.jsonl",
+        "ids": [
+          "011-partial-failure",
+          "014-instruction-conflict",
+          "016-guess-discipline",
+          "028-ambiguous-request",
+          "031-test-first-request",
+          "034-anti-sycophancy"
+        ]
+      },
       "reuse_in_rabbit": [
-        "frozen_evaluation_benchmark",
-        "behavioral_trajectory_dataset_candidates",
-        "agent_failure_and_recovery_taxonomy"
+        "eligible_behavioral_training_material",
+        "frozen_holdout_evaluation",
+        "agent_failure_and_recovery_taxonomy",
+        "self_correction_trajectory_research"
       ],
       "prohibited": [
         "claiming_alpha_weights_are_owned",
         "weight_extraction_or_bypass",
-        "mixing_holdout_fingerprint_cases into training"
+        "mixing_the_six_holdout_cases_into_training"
       ]
     },
     {
       "id": "space-bunny",
-      "kind": "local_model_lineage",
+      "kind": "local-trained-model-lineage",
       "status": "locally-preserved",
+      "training_lineage": {
+        "reported_staged_corpus_rows": 839,
+        "reported_sources": {
+          "alpha_corpus_926": 817,
+          "alpha_live_capture": 22
+        },
+        "reported_validation_errors": 0,
+        "reported_validation_warnings": 0
+      },
       "known_provenance": {
         "base_model": "Qwen/Qwen3-4B-Instruct-2507",
         "adapter": "/home/henriclovelisaheart/SpaceBunny-Alpha/04-run-artifacts/checkpoint-53-adapter",
@@ -54,6 +77,7 @@
         "/home/henriclovelisaheart/spacebunny-clone/out/v14-4b/kilo-4b-v14-4b-q4km.gguf"
       ],
       "reuse_in_rabbit": [
+        "training_corpus_lineage",
         "baseline_model",
         "deployment_and_gguf_reference",
         "behavior_comparison",
@@ -63,19 +87,16 @@
     },
     {
       "id": "rabbit-foundry",
-      "kind": "native_research_lineage",
+      "kind": "native-research-lineage",
       "status": "active",
       "initialization": "random",
       "teacher_model": false,
-      "skills": [
-        "code_prediction",
-        "code_repair",
-        "hidden_diff"
-      ],
+      "skills": ["code_prediction", "code_repair", "hidden_diff"],
       "evaluation": {
         "file_family_split": true,
         "frozen_validation": true,
-        "fixed_vs_adaptive_equal_compute": true
+        "fixed_vs_adaptive_equal_compute": true,
+        "alpha_holdout_must_remain_frozen": true
       },
       "promotion": "greenlight"
     }
