@@ -78,3 +78,24 @@ def write_bunny_manifest(source: str | Path, out: str | Path, window: int = 128)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2) + "\n")
     return payload
+
+
+def deterministic_bunny_split(episode_id: str) -> str:
+    bucket = int(episode_id[:16], 16) % 1000
+    if bucket < 800:
+        return "train"
+    if bucket < 900:
+        return "validation"
+    return "test"
+
+
+def load_bunny_episode_manifest(path: str | Path, split: str) -> list[dict]:
+    payload = json.loads(Path(path).read_text())
+    if payload.get("kind") != "bunny-lineage-episodes":
+        raise ValueError("not a Bunny lineage episode manifest")
+    if split not in {"train", "validation", "test"}:
+        raise ValueError("split must be train, validation, or test")
+    return [
+        row for row in payload["episodes"]
+        if deterministic_bunny_split(row["episode_id"]) == split
+    ]
