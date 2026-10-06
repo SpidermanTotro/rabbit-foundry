@@ -26,7 +26,7 @@ See `docs/BUNNY_LINEAGE.md`.
 
 Repository code is untrusted input. Build/test execution belongs in the locked Podman sandbox with networking disabled, read-only source mounts, dropped capabilities, and resource/time limits.
 
-Historical revisions of the same repository/path stay in one dataset partition to reduce evaluation leakage. Bunny training imports preserve source SHA-256 and keep Alpha holdouts separate.
+Historical revisions of the same repository/path stay in one dataset partition to reduce evaluation leakage. Bunny training imports preserve source SHA-256, keep every capture family in one train/validation/test partition, preserve Alpha behavior axes, and keep the six frozen Alpha holdouts separate.
 
 ## Quick start
 
@@ -75,8 +75,8 @@ Outputs are written beneath `runs/`.
 - [x] Bunny-lineage TwinTrain mode
 - [ ] Run full local regression suite after newest integration commits
 - [ ] Import and hash the real local Bunny training corpus into a run manifest
-- [ ] Preserve per-row Bunny axes (code/debug/persona/selfcorr/tool) in curriculum
-- [ ] Frozen Alpha holdout evaluation harness
+- [x] Preserve per-row Bunny axes (code/debug/persona/selfcorr/tool) in curriculum
+- [x] Frozen Alpha holdout evaluation manifest with exact-set and per-case coverage guards
 - [ ] Space Bunny checkpoint/GGUF registry verification
 - [ ] Rabbit-native GGUF conversion adapter
 - [ ] llama.cpp post-export verification
