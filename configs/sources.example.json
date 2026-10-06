@@ -3,7 +3,10 @@
     {
       "repository": "OWNER/REPOSITORY",
       "commit": "FULL_COMMIT_SHA",
-      "license": "MIT"
+      "license": "MIT",
+      "paths": [
+        "src/example.py"
+      ]
     }
   ],
   "policy": {
