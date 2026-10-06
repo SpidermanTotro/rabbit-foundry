@@ -25,11 +25,11 @@
       },
       "known_training_dataset": {
         "rows": 27,
-        "path": "/home/henriclovelisaheart/SpaceBunny-Alpha/03-dataset/derived-training/alpha-fingerprint-20261006/alpha_fingerprint.jsonl"
+        "path": "~/SpaceBunny-Alpha/03-dataset/derived-training/alpha-fingerprint-20261006/alpha_fingerprint.jsonl"
       },
       "known_holdout_dataset": {
         "rows": 6,
-        "path": "/home/henriclovelisaheart/SpaceBunny-Alpha/03-dataset/derived-training/alpha-fingerprint-20261006/alpha_fingerprint.holdout.jsonl",
+        "path": "~/SpaceBunny-Alpha/03-dataset/derived-training/alpha-fingerprint-20261006/alpha_fingerprint.holdout.jsonl",
         "ids": [
           "011-partial-failure",
           "014-instruction-conflict",
@@ -66,15 +66,15 @@
       },
       "known_provenance": {
         "base_model": "Qwen/Qwen3-4B-Instruct-2507",
-        "adapter": "/home/henriclovelisaheart/SpaceBunny-Alpha/04-run-artifacts/checkpoint-53-adapter",
-        "merged_model": "/home/henriclovelisaheart/SpaceBunny-Alpha/06-model/bunny-qwen3-4b-ep1-merged",
-        "provenance": "/home/henriclovelisaheart/SpaceBunny-Alpha/06-model/bunny-qwen3-4b-ep1-merged/PROVENANCE.json",
+        "adapter": "~/SpaceBunny-Alpha/04-run-artifacts/checkpoint-53-adapter",
+        "merged_model": "~/SpaceBunny-Alpha/06-model/bunny-qwen3-4b-ep1-merged",
+        "provenance": "~/SpaceBunny-Alpha/06-model/bunny-qwen3-4b-ep1-merged/PROVENANCE.json",
         "parameters": 4022468096,
         "dtype": "bfloat16"
       },
       "known_exports": [
-        "/home/henriclovelisaheart/spacebunny-clone/out/v14-4b/kilo-4b-v14-4b-f16.gguf",
-        "/home/henriclovelisaheart/spacebunny-clone/out/v14-4b/kilo-4b-v14-4b-q4km.gguf"
+        "~/spacebunny-clone/out/v14-4b/kilo-4b-v14-4b-f16.gguf",
+        "~/spacebunny-clone/out/v14-4b/kilo-4b-v14-4b-q4km.gguf"
       ],
       "reuse_in_rabbit": [
         "training_corpus_lineage",
