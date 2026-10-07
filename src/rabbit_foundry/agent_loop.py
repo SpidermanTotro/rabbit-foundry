@@ -189,6 +189,7 @@ class AgentLoop:
             {"role": "user", "content": task},
         ]
         tool_attempts = 0
+        fallback_context_used = False
 
         for step in range(1, self.max_steps + 1):
             response = self.runtime.router.complete(
@@ -205,7 +206,10 @@ class AgentLoop:
             })
 
             try:
-                action = parse_action(raw, allow_plain_final=False)
+                action = parse_action(
+                    raw,
+                    allow_plain_final=(tool_attempts > 0),
+                )
             except Exception as exc:
                 self.runtime.session.record("failure", {
                     "operation": "agent.parse_action",
@@ -215,6 +219,28 @@ class AgentLoop:
                     "recoverable": True,
                 })
                 messages.append({"role": "assistant", "content": raw})
+
+                if tool_attempts == 0 and not fallback_context_used:
+                    observations, attempts = self._bootstrap_readonly_context()
+                    tool_attempts += attempts
+                    fallback_context_used = True
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "RABBIT_FALLBACK_CONTEXT\n"
+                            + json.dumps({
+                                "instruction": (
+                                    "Rabbit Code inspected the workspace for you. "
+                                    "Use these real observations. You may now either "
+                                    "request another Rabbit Code tool with JSON or "
+                                    "give a concise final answer."
+                                ),
+                                "observations": observations,
+                            }, ensure_ascii=False)
+                        ),
+                    })
+                    continue
+
                 messages.append({
                     "role": "user",
                     "content": (
@@ -253,24 +279,42 @@ class AgentLoop:
                         "recoverable": True,
                     })
                     messages.append({"role": "assistant", "content": raw})
-                    messages.append({
-                        "role": "user",
-                        "content": (
-                            "RABBIT_TOOL_REQUIRED\n"
-                            + json.dumps({
-                                "error": (
-                                    "You have not used any Rabbit Code workspace "
-                                    "tool yet."
-                                ),
-                                "instruction": (
-                                    "You DO have access to this repository through "
-                                    "Rabbit Code tools. Use an appropriate tool such "
-                                    "as git_status, list, read, grep, or git_diff "
-                                    "before giving a final answer."
-                                ),
-                            })
-                        ),
-                    })
+                    if not fallback_context_used:
+                        observations, attempts = self._bootstrap_readonly_context()
+                        tool_attempts += attempts
+                        fallback_context_used = True
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                "RABBIT_FALLBACK_CONTEXT\n"
+                                + json.dumps({
+                                    "instruction": (
+                                        "Rabbit Code inspected the workspace for you. "
+                                        "Use these real observations and answer the "
+                                        "user's task. You may request more tools if "
+                                        "needed."
+                                    ),
+                                    "observations": observations,
+                                }, ensure_ascii=False)
+                            ),
+                        })
+                    else:
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                "RABBIT_TOOL_REQUIRED\n"
+                                + json.dumps({
+                                    "error": (
+                                        "You have not used any Rabbit Code workspace "
+                                        "tool yet."
+                                    ),
+                                    "instruction": (
+                                        "Use git_status, list, read, grep, or git_diff "
+                                        "before giving a final answer."
+                                    ),
+                                })
+                            ),
+                        })
                     continue
                 content = action["content"]
                 self.runtime.session.record("final", {
@@ -310,6 +354,51 @@ class AgentLoop:
             "message": error,
         })
         raise RuntimeError(error)
+
+    def _bootstrap_readonly_context(self) -> tuple[list[dict], int]:
+        observations: list[dict] = []
+        attempts = 0
+
+        def observe(tool: str, action):
+            nonlocal attempts
+            attempts += 1
+            try:
+                result = action()
+                observations.append({
+                    "tool": tool,
+                    "ok": True,
+                    "result": result,
+                })
+            except Exception as exc:
+                observations.append({
+                    "tool": tool,
+                    "ok": False,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                })
+
+        observe("git_status", self.runtime.git_status)
+        observe(
+            "list",
+            lambda: self.runtime.list("*")[:120],
+        )
+
+        for candidate in ("README.md", "pyproject.toml", "package.json"):
+            try:
+                path = self.runtime.workspace.resolve(candidate)
+            except Exception:
+                continue
+            if path.is_file():
+                observe(
+                    "read",
+                    lambda candidate=candidate: self.runtime.read(candidate)[:16000],
+                )
+
+        self.runtime.session.record("tool_result", {
+            "tool": "fallback_context",
+            "result": observations,
+        })
+        return observations, attempts
 
     def _dispatch(self, tool: str, args: dict):
         if tool == "read":
