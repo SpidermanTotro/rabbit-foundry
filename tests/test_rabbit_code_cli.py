@@ -13,6 +13,13 @@ class FakeRuntime:
     def git_status(self):
         return " M README.md\n"
 
+    def ask(self, text, *, max_tokens=1024):
+        return f"CHAT:{text}"
+
+    def ask_stream(self, text, *, max_tokens=1024):
+        yield "STREAM:"
+        yield text
+
 
 def args():
     return SimpleNamespace(
@@ -20,6 +27,7 @@ def args():
         allow_write=False,
         allow_exec=False,
         max_tokens=1024,
+        stream=False,
     )
 
 
@@ -50,3 +58,15 @@ def test_quit_command_requests_exit():
     runtime = FakeRuntime()
     assert execute_command(runtime, args(), ["/quit"]) is True
     assert execute_command(runtime, args(), ["exit"]) is True
+
+
+def test_chat_command_supports_plain_and_streamed_output(capsys):
+    runtime = FakeRuntime()
+    plain = args()
+    execute_command(runtime, plain, ["chat", "hello"])
+    assert "CHAT:hello" in capsys.readouterr().out
+
+    streamed = args()
+    streamed.stream = True
+    execute_command(runtime, streamed, ["chat", "hello"])
+    assert "STREAM:hello" in capsys.readouterr().out
