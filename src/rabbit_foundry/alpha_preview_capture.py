@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .environment import detect_environment
+from .alpha_course_quality import enrich_alpha_capture
 from .provider_capture import redact_text
 
 
@@ -45,12 +46,12 @@ def alpha_session_to_capture(session: dict, *, environment: dict | None = None) 
     for key in ("agent", "client", "outcome", "project"):
         if isinstance(session.get(key), str):
             metadata[key] = redact_text(session[key])
-    return {
+    return enrich_alpha_capture({
         "id": capture_id,
         "axis": str(session.get("axis") or "tool"),
         "messages": safe_messages,
         **metadata,
-    }
+    })
 
 
 def convert_alpha_export(source: str | Path, out: str | Path) -> dict:
