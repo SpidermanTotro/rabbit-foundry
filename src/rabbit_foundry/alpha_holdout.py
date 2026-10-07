@@ -24,6 +24,21 @@ def build_alpha_holdout_manifest(path: str | Path, window: int = 128) -> dict:
     path = Path(path)
     rows = load_alpha_holdout(path)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    too_short = []
+    for row in rows:
+        content_bytes = sum(
+            len(message.get("content", "").encode("utf-8"))
+            for message in row.get("messages", [])
+            if isinstance(message, dict) and isinstance(message.get("content"), str)
+        )
+        if content_bytes <= window:
+            too_short.append(normalize_capture_id(row_capture_id(row)))
+    if too_short:
+        raise ValueError(
+            "Alpha holdout has no evaluation episodes for: "
+            + ", ".join(sorted(filter(None, too_short)))
+            + f"; reduce window={window} or repair the source rows"
+        )
     episodes = bunny_rows_to_episodes(rows, digest, path.name, window=window)
     coverage = {capture_id: 0 for capture_id in sorted(ALPHA_HOLDOUT_IDS)}
     for episode in episodes:
