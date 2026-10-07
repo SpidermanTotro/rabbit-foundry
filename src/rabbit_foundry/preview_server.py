@@ -80,7 +80,7 @@ def handler_for(preview: RabbitNative):
         def do_GET(self):
             if self.path == "/v1/models":
                 self._json(200, {"object": "list", "data": [
-                    {"id": "rabbit-native", "object": "model", "owned_by": "rabbit-foundry"}
+                    {"id": "rabbit-native", "object": "model", "owned_by": "rabbit-code"}
                 ]})
             else:
                 self._json(404, {"error": {"message": "not found"}})
