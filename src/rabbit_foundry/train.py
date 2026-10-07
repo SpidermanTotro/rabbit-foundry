@@ -219,7 +219,7 @@ def train_one(
 
 
 def main():
-    p = argparse.ArgumentParser(description="Rabbit Foundry TwinTrain")
+    p = argparse.ArgumentParser(description="Rabbit Code TwinTrain")
     p.add_argument("--steps", type=int, default=100)
     p.add_argument("--batch", type=int, default=8)
     p.add_argument("--seq", type=int, default=64)
