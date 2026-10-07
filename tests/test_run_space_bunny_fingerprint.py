@@ -20,4 +20,4 @@ def test_load_cases_requires_all_frozen_ids(tmp_path):
 
 def test_defaults_target_current_opencode_space_bunny():
     assert module.DEFAULT_MODEL == "space-bunny-free"
-    assert module.DEFAULT_ENDPOINT == "https://opencode.ai/inference/openai/v1/chat/completions"
+    assert module.DEFAULT_ENDPOINT == "https://opencode.ai/zen/v1/chat/completions"
