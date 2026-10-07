@@ -68,3 +68,56 @@ def test_parse_action_accepts_fenced_json_and_plain_text_final():
         "type": "final",
         "content": "normal answer",
     }
+
+
+def test_parse_action_accepts_common_local_model_tool_shapes():
+    assert parse_action(
+        '{"tool":"read","args":{"path":"README.md"}}'
+    ) == {
+        "type": "tool",
+        "tool": "read",
+        "args": {"path": "README.md"},
+    }
+
+    assert parse_action(
+        '{"action":"read","path":"README.md"}'
+    ) == {
+        "type": "tool",
+        "tool": "read",
+        "args": {"path": "README.md"},
+    }
+
+    assert parse_action(
+        '{"type":"function","function":{"name":"grep","arguments":"{\\\"needle\\\":\\\"TODO\\\"}"}}'
+    ) == {
+        "type": "tool",
+        "tool": "grep",
+        "args": {"needle": "TODO"},
+    }
+
+
+def test_parse_action_accepts_common_final_aliases():
+    assert parse_action('{"answer":"done"}') == {
+        "type": "final",
+        "content": "done",
+    }
+    assert parse_action('{"action":"finish","message":"done"}') == {
+        "type": "final",
+        "content": "done",
+    }
+
+
+def test_agent_loop_recovers_from_structured_protocol_error(tmp_path):
+    (tmp_path / "note.txt").write_text("rabbit facts")
+    router = SequenceRouter([
+        '{"unexpected":true}',
+        '{"tool":"read","path":"note.txt"}',
+        '{"answer":"Recovered and inspected the note."}',
+    ])
+    result = AgentLoop(
+        runtime(tmp_path, router),
+        max_steps=4,
+    ).run("inspect the note")
+    assert result == "Recovered and inspected the note."
+    assert "RABBIT_PROTOCOL_ERROR" in router.calls[1][-1]["content"]
+    assert "rabbit facts" in router.calls[2][-1]["content"]
