@@ -186,10 +186,32 @@ def main():
         help="require this fractional held-out loss improvement before Greenlight promotion",
     )
     p.add_argument(
+        "--minimum-behavior-score", type=float, default=0.0,
+        help="require measured behavioral evaluation at or above this score; fails closed when evidence is absent",
+    )
+    p.add_argument(
+        "--behavior-scores",
+        help="JSON file mapping TwinTrain candidate names A/B to measured behavior scores in [0,1]",
+    )
+    p.add_argument(
         "--init-checkpoint",
         help="continue training from an owned/controlled compatible Rabbit winner.pt checkpoint",
     )
     args = p.parse_args()
+
+    behavior_scores = {}
+    if args.behavior_scores:
+        payload = json.loads(Path(args.behavior_scores).read_text())
+        if not isinstance(payload, dict):
+            raise ValueError("behavior-scores file must be a JSON object")
+        for name in ("A", "B"):
+            if name in payload:
+                value = payload[name]
+                if not isinstance(value, (int, float)) or not math.isfinite(value) or not 0.0 <= float(value) <= 1.0:
+                    raise ValueError(f"behavior score for {name} must be finite and in [0,1]")
+                behavior_scores[name] = float(value)
+    if args.minimum_behavior_score > 0 and set(behavior_scores) != {"A", "B"}:
+        raise ValueError("behavioral Greenlight requires measured scores for both A and B")
 
     initial_state_dict = None
     init_checkpoint_sha256 = None
@@ -241,11 +263,14 @@ def main():
             "seed": seed, "validation_loss": val, "history": history, "finite": finite,
             "curriculum": curriculum_state,
         }
-        scores.append(CandidateScore(name, val, 1.0, finite=finite))
+        behavior_score = behavior_scores.get(name)
+        results[name]["behavior_score"] = behavior_score
+        scores.append(CandidateScore(name, val, 1.0, finite=finite, behavior_score=behavior_score))
 
     decision = decide(
         scores[0], scores[1],
         minimum_relative_improvement=args.minimum_relative_improvement,
+        minimum_behavior_score=args.minimum_behavior_score,
     )
     if decision.promoted:
         torch.save(
@@ -268,6 +293,9 @@ def main():
         "sampling": args.sampling,
         "validation_sampling": "frozen_uniform",
         "minimum_relative_improvement": args.minimum_relative_improvement,
+        "minimum_behavior_score": args.minimum_behavior_score,
+        "behavior_scores_file": args.behavior_scores,
+        "behavior_evidence": "measured" if behavior_scores else "not_provided",
         "initialization": "owned_checkpoint" if args.init_checkpoint else "random",
         "init_checkpoint": args.init_checkpoint,
         "init_checkpoint_sha256": init_checkpoint_sha256,
