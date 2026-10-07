@@ -27,6 +27,11 @@ Available tools:
 - git_diff {"path": string, optional}
 - sandbox {"image": string, "command": [string, ...]} [permission gated]
 
+You DO have access to the user's current workspace through the tools above.
+For repository inspection, debugging, review, or fixing tasks, use workspace
+tools before giving a final answer. Do not claim you cannot access local files
+until you have actually attempted an appropriate Rabbit Code tool.
+
 Never invent tool results. There is no raw shell tool. Sandbox execution has
 network disabled and a read-only workspace.
 """
@@ -131,7 +136,7 @@ def _canonicalize_action(value: dict) -> dict:
     )
 
 
-def parse_action(text: str) -> dict:
+def parse_action(text: str, *, allow_plain_final: bool = True) -> dict:
     raw = text.strip()
     fence = chr(96) * 3
     if raw.startswith(fence):
@@ -143,8 +148,12 @@ def parse_action(text: str) -> dict:
         raw = "\n".join(lines).strip()
     try:
         value = json.loads(raw)
-    except json.JSONDecodeError:
-        return {"type": "final", "content": text}
+    except json.JSONDecodeError as exc:
+        if allow_plain_final:
+            return {"type": "final", "content": text}
+        raise ValueError(
+            "agent mode requires exactly one JSON action object"
+        ) from exc
     if not isinstance(value, dict):
         raise ValueError("agent action must be a JSON object")
     return _canonicalize_action(value)
@@ -179,6 +188,7 @@ class AgentLoop:
             {"role": "system", "content": TOOL_PROTOCOL_PROMPT},
             {"role": "user", "content": task},
         ]
+        tool_attempts = 0
 
         for step in range(1, self.max_steps + 1):
             response = self.runtime.router.complete(
@@ -195,7 +205,7 @@ class AgentLoop:
             })
 
             try:
-                action = parse_action(raw)
+                action = parse_action(raw, allow_plain_final=False)
             except Exception as exc:
                 self.runtime.session.record("failure", {
                     "operation": "agent.parse_action",
@@ -232,16 +242,48 @@ class AgentLoop:
                 continue
 
             if action["type"] == "final":
+                if tool_attempts == 0:
+                    self.runtime.session.record("failure", {
+                        "operation": "agent.final_without_tool",
+                        "error_type": "ToolRequired",
+                        "message": (
+                            "agent attempted to finish before using a workspace tool"
+                        ),
+                        "step": step,
+                        "recoverable": True,
+                    })
+                    messages.append({"role": "assistant", "content": raw})
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "RABBIT_TOOL_REQUIRED\n"
+                            + json.dumps({
+                                "error": (
+                                    "You have not used any Rabbit Code workspace "
+                                    "tool yet."
+                                ),
+                                "instruction": (
+                                    "You DO have access to this repository through "
+                                    "Rabbit Code tools. Use an appropriate tool such "
+                                    "as git_status, list, read, grep, or git_diff "
+                                    "before giving a final answer."
+                                ),
+                            })
+                        ),
+                    })
+                    continue
                 content = action["content"]
                 self.runtime.session.record("final", {
                     "content": content,
                     "mode": "agent",
                     "steps": step,
+                    "tool_attempts": tool_attempts,
                 })
                 return content
 
             tool = action["tool"]
             args = action["args"]
+            tool_attempts += 1
             try:
                 result = self._dispatch(tool, args)
                 tool_result = {"ok": True, "tool": tool, "result": result}
