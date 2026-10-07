@@ -148,6 +148,7 @@ def train_one(
         if curriculum is not None and resume_state.get("curriculum_state") is not None:
             curriculum.load_state(resume_state["curriculum_state"])
 
+    last_completed_step = completed_steps
     for local_step in range(1, steps + 1):
         step = completed_steps + local_step
         skill = None
@@ -168,6 +169,7 @@ def train_one(
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
+        last_completed_step = step
         if curriculum is not None and skill is not None:
             # Better-than-uniform next-byte loss is a simple teacher-free pass signal.
             passed = float(loss.detach()) < math.log(cfg.vocab_size)
@@ -187,7 +189,7 @@ def train_one(
         checkpoint_state.clear()
         checkpoint_state.update({
             "optimizer_state_dict": opt.state_dict(),
-            "completed_steps": completed_steps + len(range(1, steps + 1)) if finite else (history[-1]["step"] if history else completed_steps),
+            "completed_steps": last_completed_step,
             "python_rng_state": random.getstate(),
             "torch_rng_state": torch.random.get_rng_state(),
             "cuda_rng_state_all": torch.cuda.get_rng_state_all() if device.type == "cuda" else None,
