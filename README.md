@@ -125,6 +125,20 @@ python -m rabbit_foundry.train \
 
 The checkpoint SHA-256 and initialization mode are recorded in the run ledger. Provider preview outputs and owned model weights remain separate provenance concepts.
 
+For an exact training restart, use `--resume-checkpoint` instead of `--init-checkpoint`:
+
+```bash
+python -m rabbit_foundry.train \
+  --episodes runs/alpha-bunny/training_episodes.json \
+  --episode-kind bunny \
+  --sampling adaptive \
+  --resume-checkpoint /path/to/our/winner.pt \
+  --run-dir runs/alpha-bunny/resumed \
+  --device auto
+```
+
+Checkpoint version 2 preserves model weights, AdamW optimizer state, completed-step count, Python/Torch/CUDA RNG state, and adaptive-curriculum state. Weight-only historical checkpoints remain valid with `--init-checkpoint`, but exact resume fails closed if training state is absent. Rabbit currently has no learning-rate scheduler, so there is no scheduler state to restore yet.
+
 Alpha/Space Bunny lineage training is explicitly labeled `alpha-space-bunny`; it is **not** reported as Rabbit-native teacher-free training.
 
 ## Rabbit-native research track
@@ -206,6 +220,7 @@ pytest -q
 - [x] Structured failure → diagnosis → revision → test trajectory capture
 - [x] Provider/model provenance with secret redaction
 - [x] Compatible owned Rabbit checkpoint continuation
+- [x] Exact model + AdamW + RNG + adaptive-curriculum checkpoint resume
 - [x] Capture normalization and quarantine
 - [x] Behavior-axis normalization
 - [x] Capture provenance + SHA-256 course manifests
@@ -225,7 +240,7 @@ pytest -q
 - [ ] Live provider proxy/logger capture (current provider ingestion uses intentional exports)
 - [x] Behavioral score gate wired into Greenlight with fail-closed evidence handling
 - [ ] Generate candidate behavior scores automatically from model responses on frozen + rolling challenges
-- [ ] True optimizer/scheduler/RNG checkpoint resume
+- [x] True optimizer/RNG checkpoint resume (no scheduler exists yet)
 - [ ] Run the newest complete regression suite locally
 - [ ] Run capture pipeline against the real preserved Alpha/Bunny capture collection
 - [ ] Record the real course hashes and episode counts
