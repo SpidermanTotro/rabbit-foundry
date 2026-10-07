@@ -19,7 +19,7 @@ class SequenceRouter:
     def provider(self, provider_id):
         return self.config
 
-    def complete(self, provider_id, messages, *, max_tokens=1024):
+    def complete(self, provider_id, messages, *, max_tokens=1024, tools=None):
         self.calls.append([dict(message) for message in messages])
         content = self.outputs.pop(0)
         return {
@@ -196,3 +196,92 @@ def test_agent_fallback_after_premature_json_final(tmp_path):
     ).run("inspect this repository")
     assert result == "I inspected the supplied Rabbit Code workspace context."
     assert "RABBIT_FALLBACK_CONTEXT" in router.calls[1][-1]["content"]
+
+
+class NativeToolRouter(SequenceRouter):
+    def __init__(self, outputs):
+        super().__init__(outputs)
+        self.config = ProviderConfig(
+            "fake",
+            "http://127.0.0.1:8765/v1",
+            "rabbit-code",
+            supports_tools=True,
+        )
+        self.tool_payloads = []
+
+    def complete(self, provider_id, messages, *, max_tokens=1024, tools=None):
+        self.calls.append([dict(message) for message in messages])
+        self.tool_payloads.append(tools)
+        output = self.outputs.pop(0)
+        if isinstance(output, dict):
+            return {"choices": [{"message": output}]}
+        return {
+            "choices": [{
+                "message": {"role": "assistant", "content": output}
+            }]
+        }
+
+
+def test_agent_prefers_native_tool_calls_when_provider_supports_them(tmp_path):
+    (tmp_path / "README.md").write_text("# Rabbit Code native tools\n")
+    router = NativeToolRouter([
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{
+                "id": "call-read",
+                "type": "function",
+                "function": {
+                    "name": "read",
+                    "arguments": '{"path":"README.md"}',
+                },
+            }],
+        },
+        {
+            "role": "assistant",
+            "content": "I inspected the Rabbit Code README.",
+        },
+    ])
+    result = AgentLoop(
+        runtime(tmp_path, router),
+        max_steps=4,
+    ).run("inspect the repository")
+    assert result == "I inspected the Rabbit Code README."
+    assert router.tool_payloads[0] is not None
+    assert router.calls[1][-1]["role"] == "tool"
+    assert "Rabbit Code native tools" in router.calls[1][-1]["content"]
+
+
+class StaleGatewayRouter(NativeToolRouter):
+    def __init__(self):
+        super().__init__([
+            '{"type":"tool","tool":"read","args":{"path":"README.md"}}',
+            '{"type":"final","content":"fallback worked"}',
+        ])
+        self.rejected_once = False
+
+    def complete(self, provider_id, messages, *, max_tokens=1024, tools=None):
+        if tools is not None and not self.rejected_once:
+            self.rejected_once = True
+            raise RuntimeError(
+                "provider fake returned HTTP 400: "
+                '{"error":{"message":"tool calling not enabled yet"}}'
+            )
+        return super().complete(
+            provider_id,
+            messages,
+            max_tokens=max_tokens,
+            tools=tools,
+        )
+
+
+def test_agent_falls_back_when_stale_gateway_rejects_native_tools(tmp_path):
+    (tmp_path / "README.md").write_text("# Rabbit Code stale gateway fallback\n")
+    router = StaleGatewayRouter()
+    result = AgentLoop(
+        runtime(tmp_path, router),
+        max_steps=4,
+    ).run("inspect README")
+    assert result == "fallback worked"
+    assert router.rejected_once is True
+    assert router.tool_payloads[0] is None
