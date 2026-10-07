@@ -1,6 +1,7 @@
-name: tests
+name: Rabbit Foundry tests
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -8,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: rabbit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pytest:
+    name: Python 3.11 regression suite
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
