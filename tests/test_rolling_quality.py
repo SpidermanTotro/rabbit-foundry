@@ -26,8 +26,9 @@ def test_rolling_challenge_prefers_harder_unseen_cases(tmp_path):
 
 
 def test_quality_gate_requires_rolling_quality_not_to_regress():
-    assert quality_gate(0.8, 0.75, 0.70)["quality_pass"] is True
-    assert quality_gate(0.8, 0.65, 0.70)["quality_pass"] is False
+    assert quality_gate(0.8, 0.75, 0.70, anchor_floor=0.75)["quality_pass"] is True
+    assert quality_gate(0.8, 0.65, 0.70, anchor_floor=0.75)["quality_pass"] is False
+    assert quality_gate(0.70, 0.80, 0.70, anchor_floor=0.75)["quality_pass"] is False
 
 
 def test_quality_gate_rejects_invalid_scores():
