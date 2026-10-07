@@ -81,6 +81,24 @@ python scripts/prepare_alpha_bunny_training.py \
 
 This trains on **observable outputs you intentionally captured/exported**. It does not extract provider weights and does not imply ownership of Kilo/OpenRouter model weights.
 
+### Preserve repair trajectories
+
+For richer preview exports, Rabbit can preserve the whole repair path rather than only the final answer:
+
+```text
+task → attempt → tool call/result → failure → diagnosis → revision → test → final
+```
+
+Import trajectory JSON/JSONL:
+
+```bash
+python scripts/import_provider_trajectories.py \
+  /path/to/provider-trajectories/*.jsonl \
+  --out runs/provider-preview/trajectories.jsonl
+```
+
+Trajectory events are normalized into training-compatible messages while retaining structured event metadata. Incomplete trajectories are quarantined. This gives self-correction/debugging training a causal repair sequence instead of a flattened answer pair.
+
 ### Train the captured course
 
 ```bash
@@ -172,6 +190,7 @@ pytest -q
 
 - [x] Raw Alpha/Bunny JSON + JSONL capture ingestion
 - [x] Exported Kilo/OpenRouter/OpenAI-compatible preview-trace ingestion
+- [x] Structured failure → diagnosis → revision → test trajectory capture
 - [x] Provider/model provenance with secret redaction
 - [x] Compatible owned Rabbit checkpoint continuation
 - [x] Capture normalization and quarantine
@@ -190,6 +209,9 @@ pytest -q
 - [x] Meaningful-winner threshold
 - [x] Space Bunny artifact structural inventory
 - [x] Rabbit-native checkpoint/export-readiness audit
+- [ ] Live provider proxy/logger capture (current provider ingestion uses intentional exports)
+- [ ] Behavioral trajectory scoring wired into Greenlight
+- [ ] True optimizer/scheduler/RNG checkpoint resume
 - [ ] Run the newest complete regression suite locally
 - [ ] Run capture pipeline against the real preserved Alpha/Bunny capture collection
 - [ ] Record the real course hashes and episode counts
