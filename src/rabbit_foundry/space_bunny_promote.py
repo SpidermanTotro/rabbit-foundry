@@ -26,7 +26,8 @@ def promote_verified_repairs(
             "id": cid,
             "axis": "debug",
             "source_kind": "observable_model_session",
-            "source_model": "space-bunny-free",
+            "source_model": response.get("source_model", "space-bunny-free"),
+            "source_route": response.get("route"),
             "provenance": "opencode-space-bunny-non-anchor-challenge",
             "messages": challenge.get("messages", []) + [
                 {"role": "assistant", "content": response["response"]}
