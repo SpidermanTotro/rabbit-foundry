@@ -172,3 +172,32 @@ def test_router_respects_declared_capabilities():
             [{"role": "user", "content": "hello"}],
             stream=True,
         )
+
+
+def test_router_probe_reads_gateway_health_from_v1_base(monkeypatch):
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        return FakeResponse({
+            "status": "ok",
+            "mode": "rabbit-code-model-gateway",
+            "protocol_version": 2,
+            "model": "rabbit-code",
+            "streaming": True,
+            "tools": True,
+        })
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    router = ModelRouter()
+    router.register(ProviderConfig(
+        "local",
+        "http://127.0.0.1:8765/v1",
+        "rabbit-code",
+        supports_tools=True,
+    ))
+    result = router.probe("local")
+    assert seen["url"] == "http://127.0.0.1:8765/health"
+    assert result["reachable"] is True
+    assert result["health"]["protocol_version"] == 2
+    assert result["health"]["tools"] is True
