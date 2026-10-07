@@ -112,13 +112,15 @@ def evaluate(model, data, batch, seq, device, batches=8):
 
 def train_one(
     seed, cfg, train_data, valid_data, steps, batch, seq, device,
-    episode_mode=False, sampling="fixed",
+    episode_mode=False, sampling="fixed", initial_state_dict=None,
 ):
     random.seed(seed)
     torch.manual_seed(seed)
     if device.type == "cuda":
         torch.cuda.manual_seed_all(seed)
     model = TinyRabbitLM(cfg).to(device)
+    if initial_state_dict is not None:
+        model.load_state_dict(initial_state_dict, strict=True)
     opt = torch.optim.AdamW(model.parameters(), lr=3e-4)
     history = []
     finite = True
@@ -183,9 +185,27 @@ def main():
         "--minimum-relative-improvement", type=float, default=0.0,
         help="require this fractional held-out loss improvement before Greenlight promotion",
     )
+    p.add_argument(
+        "--init-checkpoint",
+        help="continue training from an owned/controlled compatible Rabbit winner.pt checkpoint",
+    )
     args = p.parse_args()
 
-    cfg = ModelConfig(context=max(128, args.seq))
+    initial_state_dict = None
+    init_checkpoint_sha256 = None
+    if args.init_checkpoint:
+        checkpoint_path = Path(args.init_checkpoint)
+        import hashlib
+        init_checkpoint_sha256 = hashlib.sha256(checkpoint_path.read_bytes()).hexdigest()
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        if not isinstance(checkpoint, dict) or not isinstance(checkpoint.get("config"), dict) or not isinstance(checkpoint.get("state_dict"), dict):
+            raise ValueError("init checkpoint must contain config and state_dict")
+        cfg = ModelConfig(**checkpoint["config"])
+        if args.seq > cfg.context:
+            raise ValueError("requested sequence exceeds init checkpoint context")
+        initial_state_dict = checkpoint["state_dict"]
+    else:
+        cfg = ModelConfig(context=max(128, args.seq))
     device = device_from(args.device)
     if args.episodes:
         train_data, valid_data = manifest_episodes(args.episodes, args.episode_kind)
@@ -214,6 +234,7 @@ def main():
         model, val, history, finite, curriculum_state = train_one(
             seed, cfg, train_data, valid_data, args.steps, args.batch, args.seq, device,
             episode_mode=episode_mode, sampling=args.sampling,
+            initial_state_dict=initial_state_dict,
         )
         models[name] = model
         results[name] = {
@@ -247,6 +268,9 @@ def main():
         "sampling": args.sampling,
         "validation_sampling": "frozen_uniform",
         "minimum_relative_improvement": args.minimum_relative_improvement,
+        "initialization": "owned_checkpoint" if args.init_checkpoint else "random",
+        "init_checkpoint": args.init_checkpoint,
+        "init_checkpoint_sha256": init_checkpoint_sha256,
     }
     (run / "metrics.json").write_text(json.dumps(ledger, indent=2) + "\n")
     print(json.dumps(ledger, indent=2))
