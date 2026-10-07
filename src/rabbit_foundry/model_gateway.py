@@ -68,7 +68,8 @@ class Handler(BaseHTTPRequestHandler):
                 "model": MODEL_ID,
                 "upstream": UPSTREAM,
                 "streaming": True,
-                "tools": False,
+                "tools": True,
+                "tool_mode": "upstream-passthrough",
             })
             return
 
@@ -95,10 +96,6 @@ class Handler(BaseHTTPRequestHandler):
             request = json.loads(self.rfile.read(length) or b"{}")
         except (ValueError, json.JSONDecodeError) as exc:
             self._json(400, {"error": {"message": str(exc)}})
-            return
-
-        if request.get("tools"):
-            self._json(400, {"error": {"message": "tool calling not enabled yet"}})
             return
 
         forwarded = dict(request)
@@ -168,7 +165,7 @@ def main() -> None:
     print(f"Rabbit Code gateway: http://{args.host}:{args.port}")
     print(f"Upstream: {UPSTREAM} model={UPSTREAM_MODEL}")
     print("Streaming: enabled")
-    print("Tools: disabled until verified")
+    print("Tools: upstream passthrough enabled")
     try:
         server = ThreadingHTTPServer((args.host, args.port), Handler)
     except OSError as exc:
