@@ -19,7 +19,7 @@ def models_response(models: list[ServedModel]) -> dict[str, Any]:
             {
                 "id": model.id,
                 "object": "model",
-                "owned_by": "rabbit-foundry",
+                "owned_by": "rabbit-code",
             }
             for model in models
         ],
