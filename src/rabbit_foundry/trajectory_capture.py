@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Iterable
 
+from .provider_capture import redact_text
+
 
 EVENT_KINDS = {
     "user", "assistant", "tool_call", "tool_result", "failure",
@@ -44,7 +46,7 @@ def normalize_trajectory(raw: dict, *, source: str, index: int) -> dict:
         text = _text(event)
         if text is None:
             raise ValueError(f"event {event_index} has no text")
-        normalized.append({"kind": kind, "text": text})
+        normalized.append({"kind": kind, "text": redact_text(text)})
 
     kinds = {event["kind"] for event in normalized}
     if "user" not in kinds:
