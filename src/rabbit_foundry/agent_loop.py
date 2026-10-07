@@ -304,19 +304,47 @@ class AgentLoop:
         ]
         tool_attempts = 0
         fallback_context_used = False
+        provider = self.runtime.router.provider(self.runtime.provider_id)
+        native_tools_enabled = provider.supports_tools
 
         for step in range(1, self.max_steps + 1):
-            provider = self.runtime.router.provider(self.runtime.provider_id)
-            response = self.runtime.router.complete(
-                self.runtime.provider_id,
-                messages,
-                max_tokens=self.max_tokens,
-                tools=NATIVE_TOOL_SCHEMAS if provider.supports_tools else None,
-            )
+            try:
+                response = self.runtime.router.complete(
+                    self.runtime.provider_id,
+                    messages,
+                    max_tokens=self.max_tokens,
+                    tools=NATIVE_TOOL_SCHEMAS if native_tools_enabled else None,
+                )
+            except RuntimeError as exc:
+                message = str(exc).lower()
+                tool_rejected = (
+                    native_tools_enabled
+                    and (
+                        "tool calling not enabled" in message
+                        or "tools not supported" in message
+                        or "tool use is not supported" in message
+                    )
+                )
+                if not tool_rejected:
+                    raise
+                native_tools_enabled = False
+                self.runtime.session.record("failure", {
+                    "operation": "agent.native_tools",
+                    "error_type": type(exc).__name__,
+                    "message": str(exc),
+                    "step": step,
+                    "recoverable": True,
+                    "fallback": "rabbit-json-tool-v1",
+                })
+                response = self.runtime.router.complete(
+                    self.runtime.provider_id,
+                    messages,
+                    max_tokens=self.max_tokens,
+                )
 
             native_calls = (
                 assistant_tool_calls(response)
-                if provider.supports_tools
+                if native_tools_enabled
                 else []
             )
             if native_calls:
