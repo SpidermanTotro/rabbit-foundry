@@ -9,7 +9,7 @@ def opencode_config(model_id: str = "rabbit-local", port: int = 8765) -> str:
         "model": f"rabbit/{model_id}",
         "providers": {
             "rabbit": {
-                "name": "Rabbit Foundry",
+                "name": "Rabbit Code Compatibility",
                 "package": "@opencode/ai/providers/openai-compatible",
                 "settings": {"baseURL": f"http://127.0.0.1:{port}/v1"},
                 "models": {
@@ -41,7 +41,7 @@ def kilo_config(model_id: str = "rabbit-local", port: int = 8765) -> str:
                 },
                 "models": {
                     model_id: {
-                        "name": "Rabbit Foundry Local",
+                        "name": "Rabbit Code Compatibility",
                         "tool_call": False,
                         "limit": {"context": 4096, "output": 1024},
                     }
