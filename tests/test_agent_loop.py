@@ -160,3 +160,39 @@ def test_parse_action_can_still_allow_plain_final_outside_agent_loop():
         "type": "final",
         "content": "plain answer",
     }
+
+
+def test_agent_fallback_bootstraps_context_for_non_tool_model(tmp_path):
+    (tmp_path / "README.md").write_text(
+        "# Rabbit Code\n- [ ] native function calls\n- [ ] streaming\n"
+    )
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "rabbit-code"\n'
+    )
+    router = SequenceRouter([
+        "I cannot access local files.",
+        "The three biggest remaining items are native function calls, "
+        "streaming, and deeper model evaluation.",
+    ])
+    result = AgentLoop(
+        runtime(tmp_path, router),
+        max_steps=4,
+    ).run("inspect this repository and tell me what still needs fixing")
+
+    assert "native function calls" in result
+    assert "RABBIT_FALLBACK_CONTEXT" in router.calls[1][-1]["content"]
+    assert "Rabbit Code" in router.calls[1][-1]["content"]
+
+
+def test_agent_fallback_after_premature_json_final(tmp_path):
+    (tmp_path / "README.md").write_text("# Rabbit Code\n")
+    router = SequenceRouter([
+        '{"type":"final","content":"I cannot inspect files."}',
+        "I inspected the supplied Rabbit Code workspace context.",
+    ])
+    result = AgentLoop(
+        runtime(tmp_path, router),
+        max_steps=4,
+    ).run("inspect this repository")
+    assert result == "I inspected the supplied Rabbit Code workspace context."
+    assert "RABBIT_FALLBACK_CONTEXT" in router.calls[1][-1]["content"]
