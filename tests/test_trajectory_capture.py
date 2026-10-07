@@ -48,3 +48,17 @@ def test_import_quarantines_incomplete_trajectory(tmp_path):
     assert result["captures"] == 1
     assert result["rejected"] == 1
     assert "good" in (tmp_path / "trajectories.jsonl").read_text()
+
+
+def test_redacts_secret_embedded_in_trajectory_event(tmp_path):
+    out = tmp_path / "trajectories.jsonl"
+    import_trajectories([{
+        "events": [
+            {"kind": "user", "content": "debug with API_KEY=super-secret"},
+            {"kind": "final", "content": "removed Bearer another-secret"},
+        ],
+    }], out)
+    saved = out.read_text()
+    assert "super-secret" not in saved
+    assert "another-secret" not in saved
+    assert "<redacted>" in saved
