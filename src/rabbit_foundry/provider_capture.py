@@ -11,6 +11,37 @@ SECRET_KEYS = {
     "openrouter_api_key",
 }
 
+SECRET_MARKERS = (
+    "sk-", "Bearer ", "OPENROUTER_API_KEY=", "API_KEY=", "ACCESS_TOKEN=",
+)
+
+
+def redact_text(text: str) -> str:
+    if not isinstance(text, str):
+        raise TypeError("text must be a string")
+    words = text.split()
+    redacted = []
+    hide_next = False
+    for word in words:
+        if hide_next:
+            redacted.append("<redacted>")
+            hide_next = False
+            continue
+        lower = word.lower()
+        if lower in {"bearer", "authorization:", "token:", "api_key:", "api-key:"}:
+            redacted.append(word)
+            hide_next = True
+            continue
+        if any(marker.lower() in lower for marker in SECRET_MARKERS):
+            if "=" in word:
+                key = word.split("=", 1)[0]
+                redacted.append(f"{key}=<redacted>")
+            else:
+                redacted.append("<redacted>")
+            continue
+        redacted.append(word)
+    return " ".join(redacted)
+
 
 def _redact(value):
     if isinstance(value, dict):
@@ -33,7 +64,7 @@ def _messages(value) -> list[dict] | None:
         role, content = item.get("role"), item.get("content")
         if not isinstance(role, str) or not isinstance(content, str):
             return None
-        rows.append({"role": role, "content": content})
+        rows.append({"role": role, "content": redact_text(content)})
     return rows
 
 
@@ -60,9 +91,9 @@ def normalize_provider_trace(raw: dict, *, source: str, index: int) -> dict:
             if isinstance(choice, dict):
                 message = choice.get("message")
                 if isinstance(message, dict) and isinstance(message.get("content"), str):
-                    assistant_text = message["content"]
+                    assistant_text = redact_text(message["content"])
     if assistant_text is None and isinstance(raw.get("output"), str):
-        assistant_text = raw["output"]
+        assistant_text = redact_text(raw["output"])
     if assistant_text is not None:
         if not messages or messages[-1].get("role") != "assistant" or messages[-1].get("content") != assistant_text:
             messages.append({"role": "assistant", "content": assistant_text})
