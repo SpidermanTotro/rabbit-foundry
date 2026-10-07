@@ -86,9 +86,21 @@ Implemented:
 - [x] native session/trajectory capture
 - [x] safe secret redaction
 - [x] local-vs-remote provider network gate
-- [ ] native OpenAI function/tool-call protocol
-- [ ] streaming through the Rabbit Code model router
+- [x] OpenAI-style native function/tool-call transport
+- [x] streaming through the Rabbit Code model router and CLI
+- [x] live gateway protocol/capability probing
+- [x] automatic JSON/context fallback for models that do not use native tools reliably
 - [ ] desktop/TUI interface beyond the current CLI
+
+Native tool calling is a transport capability, not a guarantee that every local
+model will choose or format tool calls correctly. Rabbit Code prefers native
+OpenAI-style `tool_calls` when the provider and running gateway advertise
+support. If a model ignores the protocol, Rabbit Code falls back to its JSON
+tool loop and safe read-only repository context.
+
+The gateway health response includes a protocol version. A gateway process
+started from older code must be restarted before new transport features become
+active.
 
 ### Quick start
 
@@ -125,6 +137,7 @@ rabbit-code --workspace . git-status
 rabbit-code --workspace . list "*.py"
 rabbit-code --workspace . read README.md
 rabbit-code --workspace . agent "inspect this repository and tell me what needs fixing"
+rabbit-code --workspace . --stream chat "summarize the project"
 ```
 
 Typing `Ctrl-C` at `rabbit>` exits Rabbit Code and returns to Bash. A bare
@@ -336,7 +349,8 @@ even though the public product name is now **Rabbit Code**.
 - [x] Rabbit Code CLI
 - [x] no-network Podman sandbox execution
 - [x] Git status/diff inspection
-- [ ] native function-call protocol + streaming
+- [x] native function-call transport + streaming
+- [x] live gateway protocol probing + stale-gateway fallback
 - [ ] automatic behavior scoring from real candidate responses
 - [ ] verified native GGUF runtime
 
