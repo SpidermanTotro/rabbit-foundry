@@ -155,6 +155,50 @@ class ModelRouter:
                 f"provider {provider_id} is unreachable: {exc.reason}"
             ) from exc
 
+    def probe(self, provider_id: str) -> dict:
+        config = self.provider(provider_id)
+        self._check_route(config)
+        base = config.base_url.rstrip("/")
+        parsed = urllib.parse.urlparse(base)
+        path = parsed.path.rstrip("/")
+        if path.endswith("/v1"):
+            root_path = path[:-3] or "/"
+        else:
+            root_path = path or "/"
+        health_url = urllib.parse.urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            root_path.rstrip("/") + "/health",
+            "",
+            "",
+            "",
+        ))
+        request = urllib.request.Request(
+            health_url,
+            headers=self._headers(config),
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=min(config.timeout, 3.0)) as response:
+                body = json.loads(response.read())
+        except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+            return {
+                "reachable": False,
+                "health_url": health_url,
+                "error": str(exc),
+            }
+        if not isinstance(body, dict):
+            return {
+                "reachable": True,
+                "health_url": health_url,
+                "health": body,
+            }
+        return {
+            "reachable": True,
+            "health_url": health_url,
+            "health": body,
+        }
+
     def stream_text(
         self,
         provider_id: str,
