@@ -21,7 +21,7 @@ def build_challenges(out: str | Path) -> dict:
         digest = hashlib.sha256(prompt.encode()).hexdigest()[:16]
         rows.append({
             "id": f"space-bunny-train-{name}-{digest}",
-            "source": "rabbit-foundry-authored",
+            "source": "rabbit-code-authored",
             "evaluation_only": False,
             "messages": [{"role": "user", "content": prompt}],
         })
