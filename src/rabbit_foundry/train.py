@@ -145,6 +145,8 @@ def train_one(
             torch.random.set_rng_state(resume_state["torch_rng_state"])
         if device.type == "cuda" and resume_state.get("cuda_rng_state_all") is not None:
             torch.cuda.set_rng_state_all(resume_state["cuda_rng_state_all"])
+        if curriculum is not None and resume_state.get("curriculum_state") is not None:
+            curriculum.load_state(resume_state["curriculum_state"])
 
     for local_step in range(1, steps + 1):
         step = completed_steps + local_step
