@@ -1,34 +1,61 @@
-# Milestones
+# Rabbit Code milestones
 
-## v0.1 — Foundry heartbeat
+## v0.1 — Local agent foundation
 
-Twin random-init models, native checkpointing, held-out loss, experiment ledger.
+Build the first usable Rabbit Code runtime:
 
-## v0.2 — Controlled learning substrate
+- interactive CLI
+- project/workspace selection
+- persistent sessions
+- model router
+- Rabbit-native provider
+- Ollama provider
+- generic OpenAI-compatible provider
+- read/search/edit/bash tools
+- explicit permission policy
+- trajectory capture with secret redaction
 
-- deterministic source episodes
-- immutable commit provenance
-- conservative license allowlist
-- adaptive curriculum primitive
-- Greenlight candidate gate
-- Podman sandbox contract
+## v0.2 — Reliable coding loop
 
-## v0.3 — Live read-only GitHub learner
+- streaming responses
+- structured tool calls/results
+- test-run integration
+- Git status/diff support
+- failure → diagnosis → revision loop
+- reproducible session/run IDs
+- provider/model provenance
 
-The next milestone will fetch explicitly configured repositories at pinned commits,
-verify declared license metadata, cache source text, split by repository/commit
-without leaking evaluation episodes, and feed byte/token episodes to TwinTrain.
+## v0.3 — Local model platform
 
-No repository code will execute during ingestion.
+- llama.cpp provider
+- model discovery
+- per-model capability registry
+- context/output limits
+- local benchmark harness
+- automatic candidate behavior evaluation
 
-## v0.4 — Objective coding episodes
+## v0.4 — Training integration
 
-Add corruption/repair and hidden-diff reconstruction. Repository test execution
-is permitted only through the sandbox runner.
+- approved Rabbit Code trajectories → training course
+- strict source-policy gate
+- frozen-evaluation contamination checks
+- Greenlight behavior scoring
+- exact resume from owned checkpoints
 
-## v0.5 — GGUF-compatible model line
+## v0.5 — Native model deployment
 
-For the first real GGUF deployment, introduce a small Llama-compatible decoder
-configuration rather than inventing an unsupported GGUF architecture. Train the
-tokenizer on the allowed corpus, export through the official llama.cpp conversion
-path, then compare native and GGUF evaluations before promotion.
+- supported architecture/tokenizer path
+- real GGUF conversion
+- llama.cpp runtime verification
+- native-vs-exported evaluation parity
+
+## Compatibility track
+
+OpenCode and Kilo remain optional adapters only. They may be useful for
+interoperability or Space Bunny research, but Rabbit Code must remain usable
+without either product.
+
+## Non-goals
+
+Rabbit Code v0.x does not claim AGI and does not pretend unsupported tool,
+vision, export, or provider capabilities work.
