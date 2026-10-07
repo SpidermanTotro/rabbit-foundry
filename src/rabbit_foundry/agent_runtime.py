@@ -58,6 +58,42 @@ class RabbitCodeRuntime:
         ])
         return answer
 
+    def ask_stream(self, text: str, *, max_tokens: int = 1024):
+        if not text.strip():
+            raise ValueError("user text must not be empty")
+        user_message = {"role": "user", "content": text}
+        self.session.record("user", {"content": text, "mode": "chat"})
+        chunks: list[str] = []
+        try:
+            for chunk in self.router.stream_text(
+                self.provider_id,
+                [
+                    {"role": "system", "content": self.system_prompt},
+                    *self.history,
+                    user_message,
+                ],
+                max_tokens=max_tokens,
+            ):
+                chunks.append(chunk)
+                yield chunk
+        except Exception as exc:
+            self.session.record("failure", {
+                "operation": "model.stream",
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+            })
+            raise
+        answer = "".join(chunks)
+        self.session.record("assistant", {
+            "content": answer,
+            "mode": "chat",
+            "streamed": True,
+        })
+        self.history.extend([
+            user_message,
+            {"role": "assistant", "content": answer},
+        ])
+
     def read(self, path: str) -> str:
         return self._tool("read", {"path": path}, lambda: self.workspace.read_text(path))
 
@@ -161,8 +197,8 @@ class RabbitCodeRuntime:
                 "sandbox_execute": shutil.which("podman") is not None,
             },
             "model_protocol": {
-                "streaming": False,
-                "tool_calls": False,
+                "streaming": provider.supports_streaming,
+                "tool_calls": provider.supports_tools,
                 "json_tool_loop": True,
             },
             "session": {
