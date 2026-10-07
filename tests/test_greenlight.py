@@ -54,3 +54,22 @@ def test_greenlight_prefers_behavior_then_loss_when_both_eligible():
     )
     assert result.promoted
     assert result.winner == "B"
+
+
+def test_greenlight_fails_closed_when_behavior_gate_has_no_measurement():
+    result = decide(
+        CandidateScore("A", 0.30, 1.0),
+        CandidateScore("B", 0.40, 1.0),
+        minimum_behavior_score=0.75,
+    )
+    assert not result.promoted
+    assert result.winner is None
+
+
+def test_greenlight_can_still_run_loss_only_when_behavior_gate_disabled():
+    result = decide(
+        CandidateScore("A", 0.30, 1.0),
+        CandidateScore("B", 0.40, 1.0),
+    )
+    assert result.promoted
+    assert result.winner == "A"
