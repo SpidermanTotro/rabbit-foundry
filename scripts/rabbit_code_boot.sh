@@ -15,16 +15,29 @@ try:
     payload = json.load(sys.stdin)
 except Exception:
     raise SystemExit(1)
-ok = (
+is_rabbit = (
     payload.get("status") == "ok"
     and payload.get("mode") == "rabbit-code-model-gateway"
     and payload.get("model") == "rabbit-code"
 )
-raise SystemExit(0 if ok else 1)
+protocol = payload.get("protocol_version", 0)
+if is_rabbit and isinstance(protocol, int) and protocol >= 2:
+    raise SystemExit(0)
+if is_rabbit:
+    raise SystemExit(4)
+raise SystemExit(1)
 '; then
     echo "Rabbit Code gateway is already running on localhost:$PORT"
     echo "$health"
     exit 0
+  else
+    status=$?
+    if [[ "$status" -eq 4 ]]; then
+      echo "Rabbit Code gateway is running, but it is an older protocol version."
+      echo "$health"
+      echo "Restart the existing gateway process, then run this script again."
+      exit 4
+    fi
   fi
 
   echo "Port $PORT is already serving HTTP, but it is not the Rabbit Code gateway."
