@@ -1,0 +1,26 @@
+{
+  "mode": "local",
+  "provider": {
+    "id": "ollama",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5-coder:7b"
+  },
+  "rabbit_code": {
+    "endpoint": "http://127.0.0.1:8765/v1",
+    "model_alias": "rabbit-local"
+  },
+  "permissions": {
+    "read": "allow",
+    "search": "allow",
+    "edit": "ask",
+    "shell": "ask",
+    "network": "deny",
+    "external_directory": "deny"
+  },
+  "capture": {
+    "enabled": true,
+    "redact_secrets": true,
+    "record_routes": true,
+    "record_tool_results": false
+  }
+}
