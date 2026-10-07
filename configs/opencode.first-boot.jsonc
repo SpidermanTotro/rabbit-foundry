@@ -3,7 +3,7 @@
   "model": "rabbit/rabbit-absorber",
   "providers": {
     "rabbit": {
-      "name": "Rabbit Foundry First Boot",
+      "name": "Rabbit Code Compatibility",
       "package": "@opencode/ai/providers/openai-compatible",
       "settings": {
         "baseURL": "http://127.0.0.1:8765/v1"
