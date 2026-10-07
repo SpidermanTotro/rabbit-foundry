@@ -64,3 +64,22 @@ must remain non-trainable until the relevant source policy is explicitly
 satisfied.
 
 Frozen evaluation cases remain evaluation-only.
+
+
+## Protocol version
+
+The Rabbit Code gateway exposes `GET /health` with a
+`protocol_version` field.
+
+Protocol version 2 adds:
+
+- streaming passthrough
+- OpenAI-style `tools` passthrough
+- native tool-call transport support for providers/models that emit it
+
+The boot script detects an older running Rabbit Code gateway and requests a
+restart instead of silently treating stale process capabilities as current.
+
+Rabbit Code also probes live gateway health before enabling native tools in an
+agent run. If native tools are unavailable or rejected, the agent falls back to
+the Rabbit JSON tool protocol and safe read-only repository context.
