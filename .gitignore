@@ -8,3 +8,4 @@ out/
 *.pt
 *.pth
 *.gguf
+.rabbit-code/
