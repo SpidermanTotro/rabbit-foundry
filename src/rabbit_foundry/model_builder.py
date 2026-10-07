@@ -12,8 +12,11 @@ class BuildPlan:
     gguf_blocker: str | None
 
 
-def plan_model(recipe: ModelRecipe, *, architecture: str = "tiny-rabbit") -> BuildPlan:
+def plan_model(recipe: ModelRecipe, *, architecture: str = "auto") -> BuildPlan:
     recipe.validate()
+    gguf_requested = "gguf" in recipe.export
+    if architecture == "auto":
+        architecture = "llama-compatible" if gguf_requested else "tiny-rabbit"
     stages = ["provenance", "privacy_redaction"]
     mapping = {
         "behavior": "behavior_course",
@@ -26,7 +29,6 @@ def plan_model(recipe: ModelRecipe, *, architecture: str = "tiny-rabbit") -> Bui
     stages.extend(mapping[x] for x in recipe.preserve)
     stages.extend(["family_split", "train", "heldout_eval", "greenlight", "checkpoint"])
 
-    gguf_requested = "gguf" in recipe.export
     gguf_ready = gguf_requested and architecture != "tiny-rabbit"
     blocker = None
     if gguf_requested and architecture == "tiny-rabbit":
@@ -40,5 +42,5 @@ def plan_model(recipe: ModelRecipe, *, architecture: str = "tiny-rabbit") -> Bui
     return BuildPlan(tuple(stages), True, gguf_ready, blocker)
 
 
-def plan_dict(recipe: ModelRecipe, *, architecture: str = "tiny-rabbit") -> dict:
+def plan_dict(recipe: ModelRecipe, *, architecture: str = "auto") -> dict:
     return asdict(plan_model(recipe, architecture=architecture))
