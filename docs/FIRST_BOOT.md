@@ -1,49 +1,70 @@
 # Rabbit Code first boot
 
-This boot tests the Rabbit Code integration path, not Rabbit model quality.
+This boot tests the Rabbit Code local model-gateway path, not Rabbit model quality.
 
 ## Backend
 
 The first boot routes text-only requests through a local Ollama model
-(`qwen2.5-coder:7b` by default) while compatibility clients see
-`rabbit-absorber`.
+(`qwen2.5-coder:7b` by default) while Rabbit Code exposes the local model ID:
 
-The proxy binds to `127.0.0.1` and refuses streaming and tool requests until
-those capabilities are verified. That makes failures obvious instead of
-silently pretending agent support exists.
+`rabbit-code`
+
+The gateway binds to `127.0.0.1`. Streaming is available on the gateway path.
+Tool calling remains disabled until the tool protocol is implemented and tested.
 
 ## Run
 
 From an installed Rabbit Code development environment:
 
 ```bash
-bash scripts/first_boot.sh
+bash scripts/rabbit_code_boot.sh
 ```
 
 In another terminal:
 
 ```bash
-bash scripts/smoke_absorber.sh
+bash scripts/smoke_gateway.sh
 ```
 
 Expected checkpoints:
 
 - `/health` returns `status: ok`
-- `/v1/models` lists `rabbit-absorber`
-- the completion request reaches the selected local backend and returns through Rabbit
+- `/v1/models` lists `rabbit-code`
+- the completion request reaches the selected local backend
+- the response is returned through the Rabbit Code gateway
 
 ## Compatibility clients
 
-OpenCode and Kilo are optional compatibility clients now, not dependencies of
+OpenCode and Kilo are optional compatibility clients, not dependencies of
 Rabbit Code itself.
+
+Current example files:
+
+- `configs/opencode.compat.jsonc`
+- `configs/kilo.compat.jsonc`
 
 Only point an external client at port 8765 after the smoke checks pass.
 
-## Do not overwrite configs blindly
+## Legacy transition
 
-Use the example first-boot configs as references. Back up any real client
-configuration before merging provider settings.
+The older `scripts/first_boot.sh` and
+`rabbit_foundry.absorber_server` entrypoints are legacy transition files.
+They are not the current documented Rabbit Code path.
 
-Streaming compatibility is a separate gate. Tool calling comes after valid
-streaming/tool protocol support, and mutation permissions remain disabled until
-verified.
+They remain temporarily because existing local work may still depend on them.
+The active replacement is:
+
+```text
+scripts/rabbit_code_boot.sh
+        ↓
+rabbit_foundry.model_gateway
+        ↓
+local model provider
+```
+
+## Configuration safety
+
+Back up any real client configuration before merging compatibility provider
+settings. Rabbit Code must not copy or expose provider credentials.
+
+Tool calling and mutation permissions remain disabled until verified.
