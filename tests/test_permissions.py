@@ -1,14 +1,24 @@
-from rabbit_foundry.permissions import Permission, PermissionPolicy
+import pytest
+
+from rabbit_foundry.permissions import (
+    ApprovalRequired,
+    Decision,
+    PermissionDenied,
+    PermissionPolicy,
+)
 
 
-def test_dry_run_cannot_edit_or_shell():
-    p = PermissionPolicy.dry_run()
-    assert p.read == Permission.ALLOW
-    assert p.edit == Permission.DENY
-    assert p.shell == Permission.DENY
+def test_default_policy_is_readable_but_mutations_require_approval():
+    policy = PermissionPolicy()
+    policy.require("read")
+    policy.require("search")
+    with pytest.raises(ApprovalRequired):
+        policy.require("write")
+    policy.require("write", approved=True)
+    with pytest.raises(PermissionDenied):
+        policy.require("network")
 
 
-def test_supervised_asks_before_mutation():
-    p = PermissionPolicy.supervised()
-    assert p.edit == Permission.ASK
-    assert p.shell == Permission.ASK
+def test_unknown_permission_fails_closed():
+    with pytest.raises(ValueError):
+        PermissionPolicy().require("teleport")

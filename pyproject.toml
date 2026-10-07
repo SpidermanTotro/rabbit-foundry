@@ -9,6 +9,9 @@ description = "Local-first coding agent and owned-model research platform"
 requires-python = ">=3.11"
 dependencies = ["torch>=2.4"]
 
+[project.scripts]
+rabbit-code = "rabbit_foundry.rabbit_code:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
