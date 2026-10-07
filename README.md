@@ -279,10 +279,23 @@ even though the public product name is now **Rabbit Code**.
 
 ## Repository naming
 
-The repository is still named `rabbit-foundry` during the transition so existing clones, imports, scripts, and links keep working.
-
 Public product: **Rabbit Code**
 
-Backend/import namespace: **rabbit_foundry**
+Current GitHub slug: `rabbit-foundry`
 
-A future repository/package rename can happen after the new agent runtime has its own stable entry point.
+Target GitHub slug: `rabbit-code`
+
+Python backend/import namespace: `rabbit_foundry`
+
+The package distribution is already named `rabbit-code`. The GitHub repository
+slug still needs to be renamed through GitHub repository settings because the
+current connector does not expose repository-admin rename actions.
+
+After that rename, existing local clones can be repointed with:
+
+```bash
+git remote set-url origin https://github.com/SpidermanTotro/rabbit-code.git
+```
+
+The `rabbit_foundry` Python namespace remains temporarily for import
+compatibility while the new Rabbit Code runtime is introduced.
