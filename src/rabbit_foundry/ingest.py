@@ -29,7 +29,7 @@ def raw_url(repository: str, commit: str, path: str) -> str:
 
 
 def fetch_bytes(url: str, timeout: int = 30) -> bytes:
-    req = Request(url, headers={"User-Agent": "rabbit-foundry/0.3"})
+    req = Request(url, headers={"User-Agent": "rabbit-code/0.3"})
     with urlopen(req, timeout=timeout) as response:
         return response.read()
 
