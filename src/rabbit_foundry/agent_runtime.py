@@ -171,6 +171,15 @@ class RabbitCodeRuntime:
     def capabilities(self) -> dict:
         provider = self.router.provider(self.provider_id)
         policy = self.workspace.permissions
+        live_probe = None
+        if hasattr(self.router, "probe"):
+            try:
+                live_probe = self.router.probe(self.provider_id)
+            except Exception as exc:
+                live_probe = {
+                    "reachable": False,
+                    "error": str(exc),
+                }
         return {
             "product": "Rabbit Code",
             "provider": {
@@ -197,8 +206,16 @@ class RabbitCodeRuntime:
                 "sandbox_execute": shutil.which("podman") is not None,
             },
             "model_protocol": {
-                "streaming": provider.supports_streaming,
-                "tool_calls": provider.supports_tools,
+                "configured": {
+                    "streaming": provider.supports_streaming,
+                    "tool_calls": provider.supports_tools,
+                },
+                "observed": (
+                    live_probe.get("health")
+                    if isinstance(live_probe, dict)
+                    and isinstance(live_probe.get("health"), dict)
+                    else None
+                ),
                 "json_tool_loop": True,
             },
             "session": {
