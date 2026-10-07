@@ -44,8 +44,10 @@ def test_runtime_chat_tool_events_and_capabilities(tmp_path):
     assert runtime.ask("hello") == "hi from rabbit"
     assert "print" in runtime.read("code.py")
     assert runtime.capabilities()["provider"]["local"] is True
-    assert runtime.capabilities()["model_protocol"]["tool_calls"] is True
-    assert runtime.capabilities()["model_protocol"]["streaming"] is True
+    protocol = runtime.capabilities()["model_protocol"]
+    assert protocol["configured"]["tool_calls"] is True
+    assert protocol["configured"]["streaming"] is True
+    assert protocol["observed"] is None
 
     rows = [json.loads(line) for line in runtime.session.path.read_text().splitlines()]
     kinds = [row["kind"] for row in rows]
