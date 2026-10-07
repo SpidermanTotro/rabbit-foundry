@@ -34,3 +34,22 @@ class Curriculum:
 
     def state(self) -> dict:
         return self.sampler.snapshot()
+
+    def load_state(self, state: dict) -> None:
+        if not isinstance(state, dict):
+            raise ValueError("curriculum state must be a dictionary")
+        expected = set(self.sampler.skills)
+        if set(state) != expected:
+            raise ValueError("curriculum state skills do not match current training skills")
+        for name, saved in state.items():
+            if not isinstance(saved, dict):
+                raise ValueError(f"invalid curriculum state for {name}")
+            current = self.sampler.skills[name]
+            weight = float(saved.get("weight", 1.0))
+            attempts = int(saved.get("attempts", 0))
+            failures = int(saved.get("failures", 0))
+            if weight < self.sampler.floor or attempts < 0 or failures < 0 or failures > attempts:
+                raise ValueError(f"invalid curriculum counters for {name}")
+            current.weight = weight
+            current.attempts = attempts
+            current.failures = failures
