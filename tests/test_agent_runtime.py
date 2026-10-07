@@ -13,6 +13,8 @@ class FakeRouter:
             "fake",
             "http://127.0.0.1:8765/v1",
             "rabbit-code",
+            supports_streaming=True,
+            supports_tools=True,
         )
 
     def provider(self, provider_id):
@@ -42,7 +44,8 @@ def test_runtime_chat_tool_events_and_capabilities(tmp_path):
     assert runtime.ask("hello") == "hi from rabbit"
     assert "print" in runtime.read("code.py")
     assert runtime.capabilities()["provider"]["local"] is True
-    assert runtime.capabilities()["model_protocol"]["tool_calls"] is False
+    assert runtime.capabilities()["model_protocol"]["tool_calls"] is True
+    assert runtime.capabilities()["model_protocol"]["streaming"] is True
 
     rows = [json.loads(line) for line in runtime.session.path.read_text().splitlines()]
     kinds = [row["kind"] for row in rows]
@@ -93,3 +96,27 @@ def test_runtime_preserves_multi_turn_chat_history(tmp_path):
         "role": "assistant",
         "content": "answer-2",
     }
+
+
+class StreamRouter(FakeRouter):
+    def stream_text(self, provider_id, messages, *, max_tokens=1024):
+        assert provider_id == "fake"
+        assert messages[-1]["content"] == "stream hello"
+        yield "Rabbit "
+        yield "stream"
+
+
+def test_runtime_streaming_chat_is_captured_and_added_to_history(tmp_path):
+    runtime = RabbitCodeRuntime(
+        StreamRouter(),
+        "fake",
+        Workspace(tmp_path, PermissionPolicy()),
+        SessionStore(tmp_path / "sessions", session_id="stream"),
+    )
+    assert "".join(runtime.ask_stream("stream hello")) == "Rabbit stream"
+    assert runtime.history[-1] == {
+        "role": "assistant",
+        "content": "Rabbit stream",
+    }
+    rows = [json.loads(line) for line in runtime.session.path.read_text().splitlines()]
+    assert rows[-1]["payload"]["streamed"] is True
