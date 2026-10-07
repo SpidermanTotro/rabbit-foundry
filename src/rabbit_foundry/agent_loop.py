@@ -32,6 +32,105 @@ network disabled and a read-only workspace.
 """
 
 
+def _object_args(value: dict, *reserved: str) -> dict:
+    args = value.get("args", value.get("arguments", value.get("parameters")))
+    if isinstance(args, str):
+        try:
+            parsed = json.loads(args)
+        except json.JSONDecodeError as exc:
+            raise ValueError("tool arguments string must contain JSON") from exc
+        args = parsed
+    if args is None:
+        args = {
+            key: item
+            for key, item in value.items()
+            if key not in set(reserved) | {
+                "type", "tool", "action", "name", "function",
+                "args", "arguments", "parameters",
+            }
+        }
+    if not isinstance(args, dict):
+        raise ValueError("tool args must be an object")
+    return args
+
+
+def _canonicalize_action(value: dict) -> dict:
+    kind = value.get("type")
+
+    if kind == "final":
+        content = value.get("content", value.get("answer", value.get("final")))
+        if not isinstance(content, str):
+            raise ValueError("final action requires string content")
+        return {"type": "final", "content": content}
+
+    if kind == "tool":
+        tool = value.get("tool", value.get("name"))
+        if not isinstance(tool, str):
+            raise ValueError("tool action requires tool name")
+        return {
+            "type": "tool",
+            "tool": tool,
+            "args": _object_args(value),
+        }
+
+    if kind in {"function", "tool_call"} and isinstance(value.get("function"), dict):
+        function = value["function"]
+        tool = function.get("name")
+        if not isinstance(tool, str):
+            raise ValueError("function action requires function.name")
+        return {
+            "type": "tool",
+            "tool": tool,
+            "args": _object_args(function),
+        }
+
+    tool = value.get("tool")
+    if isinstance(tool, str):
+        return {
+            "type": "tool",
+            "tool": tool,
+            "args": _object_args(value),
+        }
+
+    action = value.get("action")
+    if isinstance(action, str):
+        normalized = action.strip().lower()
+        if normalized in {"final", "finish", "done", "answer", "respond"}:
+            content = value.get(
+                "content",
+                value.get("answer", value.get("final", value.get("message"))),
+            )
+            if not isinstance(content, str):
+                raise ValueError("final action requires string content")
+            return {"type": "final", "content": content}
+        return {
+            "type": "tool",
+            "tool": action,
+            "args": _object_args(value),
+        }
+
+    name = value.get("name")
+    if isinstance(name, str):
+        return {
+            "type": "tool",
+            "tool": name,
+            "args": _object_args(value),
+        }
+
+    for key in ("final", "answer"):
+        if isinstance(value.get(key), str):
+            return {"type": "final", "content": value[key]}
+
+    if isinstance(value.get("content"), str):
+        return {"type": "final", "content": value["content"]}
+
+    keys = ", ".join(sorted(map(str, value.keys())))
+    raise ValueError(
+        "unrecognized agent action object"
+        + (f" (keys: {keys})" if keys else "")
+    )
+
+
 def parse_action(text: str) -> dict:
     raw = text.strip()
     fence = chr(96) * 3
@@ -48,20 +147,7 @@ def parse_action(text: str) -> dict:
         return {"type": "final", "content": text}
     if not isinstance(value, dict):
         raise ValueError("agent action must be a JSON object")
-    kind = value.get("type")
-    if kind not in {"tool", "final"}:
-        raise ValueError("agent action type must be tool or final")
-    if kind == "final":
-        if not isinstance(value.get("content"), str):
-            raise ValueError("final action requires string content")
-        return value
-    if not isinstance(value.get("tool"), str):
-        raise ValueError("tool action requires tool name")
-    args = value.get("args", {})
-    if not isinstance(args, dict):
-        raise ValueError("tool args must be an object")
-    value["args"] = args
-    return value
+    return _canonicalize_action(value)
 
 
 def _string(args: dict, key: str, *, default: str | None = None) -> str:
@@ -116,8 +202,34 @@ class AgentLoop:
                     "error_type": type(exc).__name__,
                     "message": str(exc),
                     "step": step,
+                    "recoverable": True,
                 })
-                raise
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "RABBIT_PROTOCOL_ERROR\n"
+                        + json.dumps({
+                            "error": str(exc),
+                            "required": [
+                                {
+                                    "type": "tool",
+                                    "tool": "read",
+                                    "args": {"path": "README.md"},
+                                },
+                                {
+                                    "type": "final",
+                                    "content": "your answer",
+                                },
+                            ],
+                            "instruction": (
+                                "Reply again with exactly one supported JSON "
+                                "object and no prose outside it."
+                            ),
+                        })
+                    ),
+                })
+                continue
 
             if action["type"] == "final":
                 content = action["content"]
