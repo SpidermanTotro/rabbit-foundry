@@ -2,7 +2,7 @@
 
 Date: 2026-10-07
 
-Purpose: preserve external evidence relevant to Rabbit Foundry's Space Bunny lineage and agent-integration work. This is an examination note, not an identity proof or an authentication recipe.
+Purpose: preserve external evidence relevant to Rabbit Code's Space Bunny lineage and agent-integration work. The `rabbit_foundry` backend remains the research/provenance layer. This is an examination note, not an identity proof or an authentication recipe.
 
 ## 1. Agent Solo / Lynx
 
@@ -52,7 +52,7 @@ This corroborates the historical alias already recorded in `configs/space_bunny_
 
 ## 3. Relationship to current OpenCode candidate
 
-Rabbit Foundry currently treats:
+Rabbit Code's `rabbit_foundry` backend currently treats:
 
 `opencode/space-bunny-free`
 
@@ -85,7 +85,7 @@ coding agent
             +-- model
 ```
 
-For Rabbit Foundry, a supported experiment is therefore:
+For Rabbit Code, a supported compatibility experiment is therefore:
 
 ```text
 Kilo
@@ -104,7 +104,7 @@ Do not extract, scrape, copy, or hard-code OpenCode/Kilo credentials to make thi
 ## 5. Examination questions
 
 1. Can Kilo talk directly to a documented OpenCode server/provider interface?
-2. If not, can Rabbit Foundry expose a small local OpenAI-compatible bridge while OpenCode remains responsible for its own supported authentication?
+2. If not, can Rabbit Code expose a small local OpenAI-compatible bridge while OpenCode remains responsible for its own supported authentication?
 3. Can tool calls, tool results, stop reasons, streaming, and context limits survive that bridge correctly?
 4. Does current `opencode/space-bunny-free` match the six frozen Alpha behavioral signals strongly enough to support a continuation-lineage claim?
 5. What provenance must be captured so historical Alpha, current Space Bunny, and local Rabbit are never conflated?
@@ -120,4 +120,4 @@ Do not extract, scrape, copy, or hard-code OpenCode/Kilo credentials to make thi
 
 ## Next engineering task
 
-Inspect the documented OpenCode server/interface and Kilo custom-provider interface, then build a minimal proof-of-concept bridge only if needed. Test it with a harmless current-model request first. Keep local Rabbit and Space Bunny as separate selectable providers/models.
+Treat OpenCode/Kilo as optional compatibility targets. Inspect their documented interfaces and build a minimal bridge only if it remains useful alongside the native Rabbit Code agent runtime. Test it with a harmless current-model request first. Keep local Rabbit and Space Bunny as separate selectable providers/models.
