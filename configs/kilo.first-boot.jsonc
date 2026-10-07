@@ -10,7 +10,7 @@
       },
       "models": {
         "rabbit-absorber": {
-          "name": "Rabbit Foundry First Boot",
+          "name": "Rabbit Code Compatibility",
           "tool_call": false,
           "limit": {
             "context": 16384,
