@@ -213,8 +213,9 @@ def train_one(
             "torch_rng_state": torch.random.get_rng_state(),
             "cuda_rng_state_all": torch.cuda.get_rng_state_all() if device.type == "cuda" else None,
             "curriculum_state": curriculum_state,
+            "heldout_pass_rate": heldout_pass_rate,
         })
-    return model, val, heldout_pass_rate, history, finite, curriculum_state
+    return model, val, history, finite, curriculum_state
 
 
 def main():
@@ -329,7 +330,7 @@ def main():
     scores = []
     for name, seed in (("A", 1337), ("B", 7331)):
         candidate_checkpoint_state = {}
-        model, val, heldout_pass_rate, history, finite, curriculum_state = train_one(
+        model, val, history, finite, curriculum_state = train_one(
             seed, cfg, train_data, valid_data, args.steps, args.batch, args.seq, device,
             episode_mode=episode_mode, sampling=args.sampling,
             initial_state_dict=initial_state_dict,
@@ -337,6 +338,7 @@ def main():
             checkpoint_state=candidate_checkpoint_state,
         )
         training_states[name] = candidate_checkpoint_state
+        heldout_pass_rate = float(candidate_checkpoint_state.get("heldout_pass_rate", 0.0))
         models[name] = model
         results[name] = {
             "seed": seed, "validation_loss": val, "heldout_pass_rate": heldout_pass_rate, "history": history, "finite": finite,
