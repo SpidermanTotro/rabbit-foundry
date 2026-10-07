@@ -6,7 +6,7 @@ from rabbit_foundry.bunny_import import write_bunny_manifest
 
 
 def main():
-    p = argparse.ArgumentParser(description="Import eligible Alpha/Space Bunny JSONL into Rabbit Foundry episodes")
+    p = argparse.ArgumentParser(description="Import eligible Alpha/Space Bunny JSONL into Rabbit Code backend episodes")
     p.add_argument("--source", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--window", type=int, default=128)
