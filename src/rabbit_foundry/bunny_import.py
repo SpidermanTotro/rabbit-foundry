@@ -107,6 +107,10 @@ def _ensure_small_dataset_splits(episodes: list[dict]) -> None:
 
 def write_bunny_manifest(source: str | Path, out: str | Path, window: int = 128) -> dict:
     payload = import_bunny_jsonl(source, window=window)
+    capture_ids = {row.get("source_capture_id") for row in payload["episodes"]}
+    capture_ids.discard(None)
+    if len(capture_ids) < 2:
+        raise ValueError("Bunny training requires at least two independent usable captures for train/validation")
     _ensure_small_dataset_splits(payload["episodes"])
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
