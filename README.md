@@ -64,28 +64,73 @@ Rabbit Code is the user-facing coding-agent platform.
 
 That lets us evolve the product without breaking the already-working training namespace.
 
-## v0.1 build target
+## Rabbit Code runtime
 
-Rabbit Code v0.1 should provide:
+The first real Rabbit Code runtime is now in-tree.
 
-- [ ] interactive CLI/TUI
-- [ ] persistent coding sessions
-- [ ] project/workspace selection
-- [ ] model router
-- [ ] Rabbit-native provider
-- [ ] Ollama provider
-- [ ] generic OpenAI-compatible provider
-- [ ] read tool
-- [ ] write/edit tool
-- [ ] grep/glob/list tools
-- [ ] bash tool
-- [ ] test runner integration
-- [ ] Git status/diff support
-- [ ] permission policy
-- [ ] streaming responses
-- [ ] native trajectory capture
-- [ ] safe secret redaction
-- [ ] selectable local/external network policy
+Implemented:
+
+- [x] interactive `rabbit-code` CLI
+- [x] persistent/resumable coding sessions
+- [x] project/workspace boundary with path-escape protection
+- [x] local-first model router
+- [x] generic OpenAI-compatible provider path
+- [x] Rabbit Code local gateway model
+- [x] read tool
+- [x] write + exact-edit tools
+- [x] grep/glob/list tools
+- [x] Git status/diff inspection
+- [x] explicit read/write/execute/network permission policy
+- [x] model-driven JSON tool loop with a hard step limit
+- [x] no-network, read-only Podman sandbox execution
+- [x] native session/trajectory capture
+- [x] safe secret redaction
+- [x] local-vs-remote provider network gate
+- [ ] native OpenAI function/tool-call protocol
+- [ ] streaming through the Rabbit Code model router
+- [ ] desktop/TUI interface beyond the current CLI
+
+### Quick start
+
+Start the local gateway:
+
+```bash
+bash scripts/rabbit_code_boot.sh
+```
+
+Then, from a project you want Rabbit Code to inspect:
+
+```bash
+rabbit-code --workspace /path/to/project
+```
+
+Useful commands inside Rabbit Code:
+
+```text
+/capabilities
+/list *.py
+/read README.md
+/grep TODO **/*.py
+/git-status
+/git-diff
+/agent inspect this project and explain the most important bug
+```
+
+Writes remain approval-gated unless Rabbit Code is launched with
+`--allow-write`.
+
+Sandbox execution remains approval-gated unless launched with
+`--allow-exec`, and it is still routed through the existing Podman sandbox
+with networking disabled and the workspace mounted read-only.
+
+Resume an existing conversation with:
+
+```bash
+rabbit-code --workspace /path/to/project --session-id SESSION_ID
+```
+
+Normal chat history is restored. Agent protocol/tool chatter is kept separate
+from normal chat context.
 
 Later targets:
 
@@ -269,11 +314,14 @@ even though the public product name is now **Rabbit Code**.
 - [x] Rabbit-native GitHub prediction/repair/hidden-diff research
 - [x] local OpenAI-compatible Rabbit endpoint
 - [x] export-readiness audit
-- [ ] Rabbit Code agent loop
-- [ ] Rabbit Code local model router
-- [ ] Rabbit Code tool runtime
-- [ ] Rabbit Code session store
-- [ ] Rabbit Code CLI/TUI
+- [x] Rabbit Code JSON agent loop
+- [x] Rabbit Code local-first model router
+- [x] Rabbit Code workspace/tool runtime
+- [x] Rabbit Code resumable session store
+- [x] Rabbit Code CLI
+- [x] no-network Podman sandbox execution
+- [x] Git status/diff inspection
+- [ ] native function-call protocol + streaming
 - [ ] automatic behavior scoring from real candidate responses
 - [ ] verified native GGUF runtime
 
