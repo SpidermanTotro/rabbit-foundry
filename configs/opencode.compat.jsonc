@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "rabbit/rabbit-absorber",
+  "providers": {
+    "rabbit": {
+      "name": "Rabbit Code Compatibility",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:8765/v1"
+      },
+      "models": {
+        "rabbit-absorber": {
+          "modelID": "rabbit-absorber",
+          "capabilities": {
+            "tools": false,
+            "input": ["text"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          }
+        }
+      }
+    }
+  }
+}
