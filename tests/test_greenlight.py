@@ -34,3 +34,23 @@ def test_greenlight_can_require_material_relative_improvement():
     )
     assert not result.promoted
     assert result.winner is None
+
+
+def test_greenlight_can_reject_low_behavior_quality_despite_better_loss():
+    result = decide(
+        CandidateScore("A", 0.30, 1.0, behavior_score=0.40),
+        CandidateScore("B", 0.50, 1.0, behavior_score=0.85),
+        minimum_behavior_score=0.75,
+    )
+    assert result.promoted
+    assert result.winner == "B"
+
+
+def test_greenlight_prefers_behavior_then_loss_when_both_eligible():
+    result = decide(
+        CandidateScore("A", 0.30, 1.0, behavior_score=0.80),
+        CandidateScore("B", 0.40, 1.0, behavior_score=0.90),
+        minimum_behavior_score=0.75,
+    )
+    assert result.promoted
+    assert result.winner == "B"
