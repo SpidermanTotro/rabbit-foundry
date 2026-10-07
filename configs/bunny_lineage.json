@@ -1,12 +1,14 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "rabbit-foundry-unified-bunny-lineage",
   "policy": {
     "copy_weights_into_git": false,
     "preserve_original_artifacts": true,
     "alpha_weight_extraction": false,
     "training_holdout_separation_required": true,
-    "rabbit_native_promotion_requires_greenlight": true
+    "rabbit_native_promotion_requires_greenlight": true,
+    "capture_course_first_class": true,
+    "alpha_holdout_auto_routing": true
   },
   "lineages": [
     {
@@ -21,7 +23,13 @@
         "eligible": 33,
         "training": 27,
         "holdout": 6,
-        "training_axes": ["code", "debug", "persona", "selfcorr", "tool"]
+        "training_axes": [
+          "code",
+          "debug",
+          "persona",
+          "selfcorr",
+          "tool"
+        ]
       },
       "known_training_dataset": {
         "rows": 27,
@@ -91,7 +99,11 @@
       "status": "active",
       "initialization": "random",
       "teacher_model": false,
-      "skills": ["code_prediction", "code_repair", "hidden_diff"],
+      "skills": [
+        "code_prediction",
+        "code_repair",
+        "hidden_diff"
+      ],
       "evaluation": {
         "file_family_split": true,
         "frozen_validation": true,
@@ -100,5 +112,25 @@
       },
       "promotion": "greenlight"
     }
-  ]
+  ],
+  "pipeline": {
+    "capture_course": {
+      "accepted_formats": [
+        "json",
+        "jsonl"
+      ],
+      "normalizes_behavior_axes": true,
+      "quarantines_malformed_captures": true,
+      "hashes_generated_courses": true,
+      "routes_frozen_alpha_ids_to_holdout": true,
+      "normal_mode_requires_complete_holdout": true
+    },
+    "training": {
+      "eligible_alpha_behavior_allowed": true,
+      "alpha_holdout_training_allowed": false,
+      "lineage_label": "alpha-space-bunny",
+      "adaptive_axis_curriculum": true,
+      "greenlight_required_for_promotion": true
+    }
+  }
 }
