@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import urllib.error
 import urllib.request
@@ -168,7 +169,16 @@ def main() -> None:
     print(f"Upstream: {UPSTREAM} model={UPSTREAM_MODEL}")
     print("Streaming: enabled")
     print("Tools: disabled until verified")
-    ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
+    try:
+        server = ThreadingHTTPServer((args.host, args.port), Handler)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
+            raise SystemExit(
+                f"Rabbit Code gateway cannot bind {args.host}:{args.port}: "
+                "address already in use. Check /health or choose another port."
+            ) from exc
+        raise
+    server.serve_forever()
 
 
 if __name__ == "__main__":
