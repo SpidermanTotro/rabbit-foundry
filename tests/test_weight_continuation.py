@@ -74,3 +74,38 @@ def test_exact_resume_rejects_missing_optimizer_state():
         assert "optimizer state" in str(exc)
     else:
         raise AssertionError("resume without optimizer state must fail closed")
+
+
+def test_exact_resume_matches_uninterrupted_training():
+    cfg = ModelConfig(context=32, d_model=32, n_heads=4, n_layers=1, d_ff=64)
+
+    full_model, _, _, full_finite, _ = train_one(
+        23, cfg, rows(), rows(), 4, 1, 16, torch.device("cpu"),
+        episode_mode=True,
+    )
+    assert full_finite
+
+    split_state = {}
+    split_model, _, _, split_finite, _ = train_one(
+        23, cfg, rows(), rows(), 2, 1, 16, torch.device("cpu"),
+        episode_mode=True, checkpoint_state=split_state,
+    )
+    assert split_finite
+
+    resumed_model, _, resumed_history, resumed_finite, _ = train_one(
+        23, cfg, rows(), rows(), 2, 1, 16, torch.device("cpu"),
+        episode_mode=True,
+        initial_state_dict={
+            key: value.detach().clone()
+            for key, value in split_model.state_dict().items()
+        },
+        resume_state=split_state,
+    )
+    assert resumed_finite
+    assert resumed_history[-1]["step"] == 4
+
+    full_state = full_model.state_dict()
+    resumed_state = resumed_model.state_dict()
+    assert full_state.keys() == resumed_state.keys()
+    for key in full_state:
+        torch.testing.assert_close(full_state[key], resumed_state[key], rtol=0, atol=0)
