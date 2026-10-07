@@ -5,6 +5,7 @@ import json
 import shlex
 from pathlib import Path
 
+from .agent_loop import AgentLoop
 from .agent_runtime import RabbitCodeRuntime
 from .model_router import ModelRouter, ProviderConfig
 from .permissions import Decision, PermissionPolicy
@@ -15,6 +16,7 @@ from .workspace import Workspace
 HELP = """Commands:
   /help
   /capabilities
+  /agent TASK
   /list [glob]
   /read PATH
   /grep NEEDLE [glob]
@@ -68,6 +70,7 @@ def main() -> None:
     parser.add_argument("--allow-write", action="store_true")
     parser.add_argument("--allow-exec", action="store_true")
     parser.add_argument("--max-tokens", type=int, default=1024)
+    parser.add_argument("--agent-steps", type=int, default=8)
     args = parser.parse_args()
 
     runtime = build_runtime(args)
@@ -96,6 +99,17 @@ def main() -> None:
             command = parts[0] if parts else ""
             if command == "/capabilities":
                 print(json.dumps(runtime.capabilities(), indent=2))
+            elif command == "/agent":
+                if len(parts) < 2:
+                    raise ValueError("usage: /agent TASK")
+                loop = AgentLoop(
+                    runtime,
+                    max_steps=args.agent_steps,
+                    approve_write=args.allow_write,
+                    approve_exec=args.allow_exec,
+                    max_tokens=args.max_tokens,
+                )
+                print(loop.run(" ".join(parts[1:])))
             elif command == "/list":
                 pattern = parts[1] if len(parts) > 1 else "**/*"
                 print("\n".join(runtime.list(pattern)))
