@@ -1,0 +1,23 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "model": "rabbit/rabbit-absorber",
+  "provider": {
+    "rabbit": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "apiKey": "none",
+        "baseURL": "http://127.0.0.1:8765/v1"
+      },
+      "models": {
+        "rabbit-absorber": {
+          "name": "Rabbit Code Compatibility",
+          "tool_call": false,
+          "limit": {
+            "context": 16384,
+            "output": 4096
+          }
+        }
+      }
+    }
+  }
+}
