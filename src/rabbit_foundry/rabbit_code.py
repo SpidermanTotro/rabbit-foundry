@@ -54,7 +54,7 @@ def build_runtime(args) -> RabbitCodeRuntime:
     session_root = Path(args.session_dir)
     if not session_root.is_absolute():
         session_root = workspace.root / session_root
-    session = SessionStore(session_root)
+    session = SessionStore(session_root, session_id=args.session_id)
     return RabbitCodeRuntime(router, args.provider, workspace, session)
 
 
@@ -66,6 +66,7 @@ def main() -> None:
     parser.add_argument("--model", default="rabbit-code")
     parser.add_argument("--api-key-env")
     parser.add_argument("--session-dir", default=".rabbit-code/sessions")
+    parser.add_argument("--session-id")
     parser.add_argument("--allow-network", action="store_true")
     parser.add_argument("--allow-write", action="store_true")
     parser.add_argument("--allow-exec", action="store_true")
@@ -77,7 +78,8 @@ def main() -> None:
     print("Rabbit Code")
     print(f"workspace: {runtime.workspace.root}")
     print(f"provider: {args.provider} -> {args.model}")
-    print(f"session: {runtime.session.session_id}")
+    state = "resumed" if runtime.session.resumed else "new"
+    print(f"session: {runtime.session.session_id} ({state})")
     print("Type /help for commands.")
 
     while True:

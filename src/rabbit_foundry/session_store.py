@@ -36,6 +36,7 @@ class SessionStore:
             raise ValueError("session_id contains unsafe characters")
         self.training_allowed = bool(training_allowed)
         self.path = self.directory / f"{self.session_id}.jsonl"
+        self.resumed = self.path.exists()
 
     def record(self, kind: str, payload: dict) -> dict:
         if not kind:
@@ -53,3 +54,37 @@ class SessionStore:
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
         return row
+
+    def events(self) -> list[dict]:
+        if not self.path.exists():
+            return []
+        rows = []
+        for number, line in enumerate(self.path.read_text().splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"invalid session JSON on line {number}"
+                ) from exc
+            if not isinstance(row, dict):
+                raise ValueError(f"invalid session event on line {number}")
+            rows.append(row)
+        return rows
+
+    def chat_history(self) -> list[dict]:
+        history: list[dict] = []
+        for row in self.events():
+            kind = row.get("kind")
+            if kind not in {"user", "assistant"}:
+                continue
+            payload = row.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("mode") == "agent":
+                continue
+            content = payload.get("content")
+            if isinstance(content, str):
+                history.append({"role": kind, "content": content})
+        return history

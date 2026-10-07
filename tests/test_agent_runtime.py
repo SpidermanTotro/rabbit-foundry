@@ -49,3 +49,47 @@ def test_runtime_chat_tool_events_and_capabilities(tmp_path):
     assert kinds[:2] == ["user", "assistant"]
     assert "tool_call" in kinds
     assert "tool_result" in kinds
+
+
+class HistoryRouter(FakeRouter):
+    def __init__(self):
+        super().__init__()
+        self.calls = []
+
+    def complete(self, provider_id, messages, *, max_tokens=1024):
+        self.calls.append(messages)
+        return {
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": f"answer-{len(self.calls)}",
+                }
+            }]
+        }
+
+
+def test_runtime_preserves_multi_turn_chat_history(tmp_path):
+    router = HistoryRouter()
+    store = SessionStore(tmp_path / "sessions", session_id="history")
+    first = RabbitCodeRuntime(
+        router,
+        "fake",
+        Workspace(tmp_path, PermissionPolicy()),
+        store,
+    )
+    assert first.ask("one") == "answer-1"
+    assert first.ask("two") == "answer-2"
+    assert {"role": "assistant", "content": "answer-1"} in router.calls[1]
+
+    resumed_router = HistoryRouter()
+    resumed = RabbitCodeRuntime(
+        resumed_router,
+        "fake",
+        Workspace(tmp_path, PermissionPolicy()),
+        SessionStore(tmp_path / "sessions", session_id="history"),
+    )
+    assert resumed.session.resumed is True
+    assert resumed.history[-1] == {
+        "role": "assistant",
+        "content": "answer-2",
+    }

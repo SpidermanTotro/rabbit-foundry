@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .model_router import ModelRouter, assistant_text
 from .session_store import SessionStore
@@ -19,17 +19,24 @@ class RabbitCodeRuntime:
         "Be precise about what you inspected and do not claim tool actions "
         "that were not actually executed."
     )
+    history: list[dict] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.history:
+            self.history = self.session.chat_history()
 
     def ask(self, text: str, *, max_tokens: int = 1024) -> str:
         if not text.strip():
             raise ValueError("user text must not be empty")
-        self.session.record("user", {"content": text})
+        user_message = {"role": "user", "content": text}
+        self.session.record("user", {"content": text, "mode": "chat"})
         try:
             response = self.router.complete(
                 self.provider_id,
                 [
                     {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": text},
+                    *self.history,
+                    user_message,
                 ],
                 max_tokens=max_tokens,
             )
@@ -41,7 +48,14 @@ class RabbitCodeRuntime:
                 "message": str(exc),
             })
             raise
-        self.session.record("assistant", {"content": answer})
+        self.session.record("assistant", {
+            "content": answer,
+            "mode": "chat",
+        })
+        self.history.extend([
+            user_message,
+            {"role": "assistant", "content": answer},
+        ])
         return answer
 
     def read(self, path: str) -> str:
@@ -149,9 +163,12 @@ class RabbitCodeRuntime:
             "model_protocol": {
                 "streaming": False,
                 "tool_calls": False,
+                "json_tool_loop": True,
             },
             "session": {
                 "id": self.session.session_id,
+                "resumed": self.session.resumed,
+                "history_messages": len(self.history),
                 "training_allowed": self.session.training_allowed,
             },
         }
