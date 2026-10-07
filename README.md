@@ -1,12 +1,107 @@
-# Rabbit Foundry 🐇🏭
+# Rabbit Code 🐇💻
 
-Rabbit Foundry is a local-first model research and behavioral-training foundry.
+**Rabbit Code** is a local-first, open coding-agent platform built around your own models, your own tools, and your own machine.
 
-Its primary workflow now understands **captured Alpha/Bunny behavior as a training course**: raw behavioral captures are normalized, audited, separated into eligible training material and frozen evaluation material, converted into deterministic training episodes, trained with TwinTrain, and promoted only through Greenlight.
+It is being built as an alternative to depending on paywalled coding-agent platforms. Rabbit Code itself has no subscription gate. Local models can run through Rabbit-native checkpoints, Ollama, llama.cpp, or any compatible local endpoint. External providers can remain optional adapters when the user deliberately chooses them.
 
-Rabbit-native teacher-free GitHub learning remains a separate research track.
+The existing `rabbit_foundry` Python package remains the model-training and research backend while the new Rabbit Code agent runtime is built on top.
 
-## Alpha/Bunny capture → training pipeline
+## Vision
+
+```text
+                        Rabbit Code
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                 │
+        Chat            Agent Loop        Model Router
+          │                 │                 │
+          │          ┌──────┼──────┐          │
+          │          │      │      │          │
+          │        read    edit   bash        │
+          │        grep    test   git         │
+          │                                   │
+          └─────────────────┬─────────────────┘
+                            │
+                     Provider Interface
+                            │
+              ┌─────────────┼──────────────┐
+              │             │              │
+         Rabbit local     Ollama        llama.cpp
+              │
+         owned checkpoints
+
+              optional external providers
+              only when explicitly enabled
+```
+
+The goal is not to clone every feature of Kilo, OpenCode, or a full IDE at once. The first target is a small, reliable coding agent with strong local-model support, explicit permissions, reproducible tool execution, and native trajectory capture.
+
+## Product principles
+
+- **Local first** — local inference is a first-class path, not a fallback.
+- **No Rabbit Code paywall** — the application does not require a subscription.
+- **Bring your own model** — Rabbit, Ollama, llama.cpp, and OpenAI-compatible endpoints.
+- **Explicit permissions** — read operations can be allowed while edits, execution, and network access remain separately controlled.
+- **Observable agent behavior** — tool calls, failures, corrections, tests, and final answers can be captured with provenance.
+- **No credential harvesting** — provider authentication remains provider-owned and is never training data.
+- **Honest capability flags** — tools, streaming, vision, export, and context support are only advertised when they really work.
+- **Training/evaluation separation** — frozen evaluation cases never silently become training material.
+
+## Architecture
+
+Rabbit Code is the user-facing coding-agent platform.
+
+`rabbit_foundry` is currently its backend for:
+
+- owned-model training
+- checkpoint/resume
+- behavioral capture
+- provenance
+- Greenlight promotion
+- Rabbit-native inference
+- Alpha/Space Bunny lineage research
+- OpenAI-compatible local serving
+
+That lets us evolve the product without breaking the already-working training namespace.
+
+## v0.1 build target
+
+Rabbit Code v0.1 should provide:
+
+- [ ] interactive CLI/TUI
+- [ ] persistent coding sessions
+- [ ] project/workspace selection
+- [ ] model router
+- [ ] Rabbit-native provider
+- [ ] Ollama provider
+- [ ] generic OpenAI-compatible provider
+- [ ] read tool
+- [ ] write/edit tool
+- [ ] grep/glob/list tools
+- [ ] bash tool
+- [ ] test runner integration
+- [ ] Git status/diff support
+- [ ] permission policy
+- [ ] streaming responses
+- [ ] native trajectory capture
+- [ ] safe secret redaction
+- [ ] selectable local/external network policy
+
+Later targets:
+
+- desktop/web UI
+- VS Code integration
+- richer tool-call protocol
+- multi-agent workflows
+- model benchmarking
+- local training-from-approved-trajectories
+- optional OpenCode/Kilo compatibility adapters
+
+## Existing Rabbit backend
+
+The repository already contains a substantial working backend.
+
+### Alpha/Bunny capture → training pipeline
 
 ```text
 raw Alpha/Bunny captures
@@ -40,8 +135,6 @@ The six frozen Alpha IDs are never permitted into training:
 
 ### Prepare captured behavior
 
-Pass one or more JSON/JSONL capture files:
-
 ```bash
 python scripts/prepare_alpha_bunny_training.py \
   captures/*.jsonl \
@@ -49,57 +142,9 @@ python scripts/prepare_alpha_bunny_training.py \
   --window 128
 ```
 
-This writes:
+The pipeline normalizes captures, quarantines malformed inputs, hashes source/course files, separates eligible training from frozen holdout data, and produces deterministic training episodes.
 
-- `course/alpha_training.jsonl`
-- `course/alpha_holdout.jsonl`
-- `course/rejected.json`
-- `course/capture_manifest.json`
-- `training_episodes.json`
-- `alpha_holdout_episodes.json`
-- `pipeline.json`
-
-Malformed captures are quarantined. Duplicate capture IDs are rejected. Behavior axes such as coding/debugging/self-correction/tool/persona are normalized. Source files and generated courses are hashed.
-
-By default the pipeline requires the complete six-case Alpha holdout before calling the preparation complete.
-
-### Capture Kilo / OpenRouter previews
-
-Rabbit can import **exported** Kilo, OpenRouter, or other OpenAI-compatible request/response traces as behavioral preview data. Provider/model provenance is retained; API credentials are not training data.
-
-```bash
-python scripts/import_provider_preview.py \
-  /path/to/kilo-or-openrouter-exports/*.jsonl \
-  --out runs/provider-preview/captures.jsonl
-
-python scripts/prepare_alpha_bunny_training.py \
-  runs/provider-preview/captures.jsonl \
-  /path/to/preserved-alpha-holdout.jsonl \
-  --out-dir runs/provider-bunny \
-  --window 128
-```
-
-This trains on **observable outputs you intentionally captured/exported**. It does not extract provider weights and does not imply ownership of Kilo/OpenRouter model weights.
-
-### Preserve repair trajectories
-
-For richer preview exports, Rabbit can preserve the whole repair path rather than only the final answer:
-
-```text
-task → attempt → tool call/result → failure → diagnosis → revision → test → final
-```
-
-Import trajectory JSON/JSONL:
-
-```bash
-python scripts/import_provider_trajectories.py \
-  /path/to/provider-trajectories/*.jsonl \
-  --out runs/provider-preview/trajectories.jsonl
-```
-
-Trajectory events are normalized into training-compatible messages while retaining structured event metadata. Incomplete trajectories are quarantined. This gives self-correction/debugging training a causal repair sequence instead of a flattened answer pair.
-
-### Train the captured course
+### Train an owned Rabbit checkpoint
 
 ```bash
 python -m rabbit_foundry.train \
@@ -111,79 +156,11 @@ python -m rabbit_foundry.train \
   --device auto
 ```
 
-To continue from a compatible Rabbit checkpoint that you own/control:
+Exact resume preserves model weights, AdamW state, completed steps, Python/Torch/CUDA RNG, and adaptive curriculum state.
 
-```bash
-python -m rabbit_foundry.train \
-  --episodes runs/alpha-bunny/training_episodes.json \
-  --episode-kind bunny \
-  --sampling adaptive \
-  --init-checkpoint /path/to/our/winner.pt \
-  --run-dir runs/alpha-bunny/continued \
-  --device auto
-```
+### Local Rabbit endpoint
 
-The checkpoint SHA-256 and initialization mode are recorded in the run ledger. Provider preview outputs and owned model weights remain separate provenance concepts.
-
-For an exact training restart, use `--resume-checkpoint` instead of `--init-checkpoint`:
-
-```bash
-python -m rabbit_foundry.train \
-  --episodes runs/alpha-bunny/training_episodes.json \
-  --episode-kind bunny \
-  --sampling adaptive \
-  --resume-checkpoint /path/to/our/winner.pt \
-  --run-dir runs/alpha-bunny/resumed \
-  --device auto
-```
-
-Checkpoint version 2 preserves model weights, AdamW optimizer state, completed-step count, Python/Torch/CUDA RNG state, and adaptive-curriculum state. Weight-only historical checkpoints remain valid with `--init-checkpoint`, but exact resume fails closed if training state is absent. Rabbit currently has no learning-rate scheduler, so there is no scheduler state to restore yet.
-
-Alpha/Space Bunny lineage training is explicitly labeled `alpha-space-bunny`; it is **not** reported as Rabbit-native teacher-free training.
-
-## Rabbit-native research track
-
-The separate native experiment starts from random weights and learns from pinned GitHub-derived byte tasks without teacher-model answers:
-
-- code prediction
-- deterministic code repair
-- safely aligned hidden revision differences
-
-Historical revisions of one repository/path remain in one dataset partition. Hidden-diff byte training uses only equal-length changed spans; insertion/deletion shifts are not treated as aligned targets.
-
-```bash
-python -m rabbit_foundry.experiment \
-  --episodes runs/episodes.json \
-  --out runs/experiments/fixed-vs-adaptive.json \
-  --steps 100 \
-  --batch 8 \
-  --seq 64 \
-  --minimum-relative-improvement 0.01 \
-  --device auto
-```
-
-Fixed and adaptive arms receive equal compute and identical frozen validation. A tiny numerical loss difference does not need to be declared a meaningful winner.
-
-## Greenlight
-
-Greenlight rejects non-finite candidates and can require a minimum relative held-out improvement before promotion. Behavioral quality is never silently assumed: without measured evidence it is recorded as unknown. When `--minimum-behavior-score` is enabled, both TwinTrain candidates must have measured scores or training fails closed.
-
-Measured candidate scores can be supplied as a JSON object such as `{"A": 0.82, "B": 0.91}`:
-
-```bash
-python -m rabbit_foundry.train \
-  --episodes runs/alpha-bunny/training_episodes.json \
-  --episode-kind bunny \
-  --behavior-scores runs/eval/behavior-scores.json \
-  --minimum-behavior-score 0.75 \
-  --run-dir runs/alpha-bunny/train
-```
-
-The run ledger records whether behavioral evidence was actually provided. A promoted model is saved as `winner.pt`.
-
-## Local Rabbit Preview bridge
-
-An owned Rabbit checkpoint can be exposed to local coding agents through a minimal OpenAI-compatible interface:
+An owned Rabbit checkpoint can be exposed through the existing OpenAI-compatible preview server:
 
 ```bash
 python -m rabbit_foundry.preview_server \
@@ -191,32 +168,73 @@ python -m rabbit_foundry.preview_server \
   --capture runs/preview/captures.jsonl
 ```
 
-The server binds to `127.0.0.1:8765` by default and exposes `GET /v1/models` plus `POST /v1/chat/completions`. Configure a compatible local client with base URL `http://127.0.0.1:8765/v1` and model `rabbit-preview`.
+Default endpoint:
 
-Preview captures include a safe allowlisted host-environment snapshot and redacted messages/responses. They can later pass through the normal capture-course/provenance pipeline. The preview bridge does not extract or copy provider model weights.
+```text
+http://127.0.0.1:8765/v1
+```
+
+Implemented routes:
+
+- `GET /v1/models`
+- `POST /v1/chat/completions`
+
+This server becomes one of Rabbit Code's native model-provider paths.
+
+## Space Bunny / Alpha research
+
+Historical Space Bunny Alpha:
+
+```text
+stealth/space-bunny-alpha
+```
+
+Current OpenCode candidate under investigation:
+
+```text
+opencode/space-bunny-free
+```
+
+The current model is treated only as an **unverified continuation candidate**. Behavioral similarity does not prove model identity.
+
+See:
+
+- `docs/BUNNY_LINEAGE.md`
+- `docs/SPACE_BUNNY_EXTERNAL_AGENT_RESEARCH.md`
+
+The six frozen Alpha fingerprint cases remain evaluation-only.
+
+## Greenlight
+
+Greenlight promotes candidates only from measured evidence. Non-finite candidates fail, behavior scores can be required, and held-out evidence is not silently replaced with a fake pass value.
+
+A promoted owned model is saved as:
+
+```text
+winner.pt
+```
 
 ## Export boundary
 
-TinyRabbitLM is currently a custom byte-level PyTorch architecture, not a llama.cpp-supported Llama/Qwen architecture. Rabbit Foundry therefore audits export readiness instead of pretending generic GGUF conversion works:
+The current TinyRabbitLM is a custom byte-level PyTorch architecture. It is **not** automatically GGUF-compatible.
 
-```bash
-python scripts/check_rabbit_export.py \
-  --checkpoint runs/latest/winner.pt \
-  --out runs/latest/export-readiness.json
-```
+A real GGUF pass requires either:
 
-A real native GGUF requires either a TinyRabbit llama.cpp architecture/tokenizer implementation or migration of the native brain to an architecture llama.cpp already supports.
+1. actual TinyRabbit support in llama.cpp, or
+2. migration to an architecture/tokenizer llama.cpp already supports.
+
+Rabbit Code must not report GGUF readiness unless conversion and runtime verification genuinely succeed.
 
 ## Safety and provenance
 
-- Alpha provider weights are unavailable and are not extracted or bypassed.
-- Observable eligible Alpha behavior may be used as behavioral training material.
-- The six designated Alpha holdout captures remain evaluation-only.
-- Space Bunny checkpoints/GGUFs stay external to Git and retain their own lineage.
-- Rabbit-native experiments remain separately labeled.
-- Repository code is untrusted input and belongs in the locked sandbox for execution.
-
-Machine-readable lineage policy: `configs/bunny_lineage.json`.
+- Provider weights are not extracted or claimed as owned.
+- Credentials are never training data.
+- Provider/model provenance is retained.
+- Frozen Alpha evaluation cases never enter training.
+- Repository code is untrusted input for execution.
+- Network access is independently permissioned.
+- Current provider outputs are not automatically promoted into training.
+- External-output training must be explicitly permitted by applicable source policy.
 
 ## Development
 
@@ -227,40 +245,44 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-## Current capability
+The Python import namespace remains:
 
-- [x] Raw Alpha/Bunny JSON + JSONL capture ingestion
-- [x] Exported Kilo/OpenRouter/OpenAI-compatible preview-trace ingestion
-- [x] Structured failure → diagnosis → revision → test trajectory capture
-- [x] Provider/model provenance with secret redaction
-- [x] Compatible owned Rabbit checkpoint continuation
-- [x] Exact model + AdamW + RNG + adaptive-curriculum checkpoint resume
-- [x] Capture normalization and quarantine
-- [x] Behavior-axis normalization
-- [x] Capture provenance + SHA-256 course manifests
-- [x] Automatic eligible-training / frozen-holdout routing
-- [x] Mechanical Alpha holdout contamination guard
-- [x] Complete-six holdout requirement for normal pipeline preparation
-- [x] Capture-family train/validation/test isolation
-- [x] Bunny behavioral episodes
-- [x] Adaptive Bunny curriculum
-- [x] TwinTrain + Greenlight promotion
+```python
+import rabbit_foundry
+```
+
+even though the public product name is now **Rabbit Code**.
+
+## Current backend capability
+
+- [x] Alpha/Bunny JSON + JSONL capture ingestion
+- [x] provider-preview trace ingestion
+- [x] structured repair trajectory capture
+- [x] provider/model provenance
+- [x] secret redaction
+- [x] compatible checkpoint continuation
+- [x] exact optimizer/RNG/curriculum resume
+- [x] frozen-holdout contamination guard
+- [x] family-safe train/validation splitting
+- [x] adaptive Bunny curriculum
+- [x] TwinTrain + Greenlight
 - [x] Rabbit-native GitHub prediction/repair/hidden-diff research
-- [x] Leak-resistant file-family splitting
-- [x] Equal-compute fixed-vs-adaptive experiment
-- [x] Meaningful-winner threshold
-- [x] Space Bunny artifact structural inventory
-- [x] Rabbit-native checkpoint/export-readiness audit
-- [x] Local Rabbit Preview OpenAI-compatible bridge + redacted capture
-- [ ] Live third-party provider proxy/logger capture
-- [x] Behavioral score gate wired into Greenlight with fail-closed evidence handling
-- [ ] Generate candidate behavior scores automatically from model responses on frozen + rolling challenges
-- [x] True optimizer/RNG checkpoint resume (no scheduler exists yet)
-- [ ] Run the newest complete regression suite locally
-- [ ] Run capture pipeline against the real preserved Alpha/Bunny capture collection
-- [ ] Record the real course hashes and episode counts
-- [ ] Evaluate trained candidates against the six frozen Alpha cases with behavioral metrics
-- [ ] TinyRabbit llama.cpp architecture/tokenizer mapping or supported architecture migration
-- [ ] Rabbit-native GGUF + llama.cpp verification
+- [x] local OpenAI-compatible Rabbit endpoint
+- [x] export-readiness audit
+- [ ] Rabbit Code agent loop
+- [ ] Rabbit Code local model router
+- [ ] Rabbit Code tool runtime
+- [ ] Rabbit Code session store
+- [ ] Rabbit Code CLI/TUI
+- [ ] automatic behavior scoring from real candidate responses
+- [ ] verified native GGUF runtime
 
-See `docs/BUNNY_LINEAGE.md` for the preserved lineage boundary.
+## Repository naming
+
+The repository is still named `rabbit-foundry` during the transition so existing clones, imports, scripts, and links keep working.
+
+Public product: **Rabbit Code**
+
+Backend/import namespace: **rabbit_foundry**
+
+A future repository/package rename can happen after the new agent runtime has its own stable entry point.
