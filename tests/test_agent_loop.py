@@ -121,3 +121,42 @@ def test_agent_loop_recovers_from_structured_protocol_error(tmp_path):
     assert result == "Recovered and inspected the note."
     assert "RABBIT_PROTOCOL_ERROR" in router.calls[1][-1]["content"]
     assert "rabbit facts" in router.calls[2][-1]["content"]
+
+
+def test_agent_mode_rejects_plain_prose_then_uses_tool(tmp_path):
+    (tmp_path / "README.md").write_text("Rabbit Code repository")
+    router = SequenceRouter([
+        "I cannot access local files.",
+        '{"tool":"read","path":"README.md"}',
+        '{"type":"final","content":"I inspected the repository README."}',
+    ])
+    result = AgentLoop(
+        runtime(tmp_path, router),
+        max_steps=4,
+    ).run("inspect this repository")
+    assert result == "I inspected the repository README."
+    assert "RABBIT_PROTOCOL_ERROR" in router.calls[1][-1]["content"]
+    assert "Rabbit Code repository" in router.calls[2][-1]["content"]
+
+
+def test_agent_mode_rejects_final_before_any_tool(tmp_path):
+    (tmp_path / "README.md").write_text("Rabbit Code repository")
+    router = SequenceRouter([
+        '{"type":"final","content":"I cannot access local files."}',
+        '{"tool":"read","path":"README.md"}',
+        '{"type":"final","content":"Now I inspected it."}',
+    ])
+    result = AgentLoop(
+        runtime(tmp_path, router),
+        max_steps=4,
+    ).run("inspect this repository")
+    assert result == "Now I inspected it."
+    assert "RABBIT_TOOL_REQUIRED" in router.calls[1][-1]["content"]
+    assert "Rabbit Code repository" in router.calls[2][-1]["content"]
+
+
+def test_parse_action_can_still_allow_plain_final_outside_agent_loop():
+    assert parse_action("plain answer") == {
+        "type": "final",
+        "content": "plain answer",
+    }
