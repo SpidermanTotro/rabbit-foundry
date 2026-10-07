@@ -152,7 +152,20 @@ Fixed and adaptive arms receive equal compute and identical frozen validation. A
 
 ## Greenlight
 
-Greenlight rejects non-finite candidates and can require a minimum relative held-out improvement before promotion. A promoted model is saved as `winner.pt`.
+Greenlight rejects non-finite candidates and can require a minimum relative held-out improvement before promotion. Behavioral quality is never silently assumed: without measured evidence it is recorded as unknown. When `--minimum-behavior-score` is enabled, both TwinTrain candidates must have measured scores or training fails closed.
+
+Measured candidate scores can be supplied as a JSON object such as `{"A": 0.82, "B": 0.91}`:
+
+```bash
+python -m rabbit_foundry.train \
+  --episodes runs/alpha-bunny/training_episodes.json \
+  --episode-kind bunny \
+  --behavior-scores runs/eval/behavior-scores.json \
+  --minimum-behavior-score 0.75 \
+  --run-dir runs/alpha-bunny/train
+```
+
+The run ledger records whether behavioral evidence was actually provided. A promoted model is saved as `winner.pt`.
 
 ## Export boundary
 
@@ -210,7 +223,8 @@ pytest -q
 - [x] Space Bunny artifact structural inventory
 - [x] Rabbit-native checkpoint/export-readiness audit
 - [ ] Live provider proxy/logger capture (current provider ingestion uses intentional exports)
-- [ ] Behavioral trajectory scoring wired into Greenlight
+- [x] Behavioral score gate wired into Greenlight with fail-closed evidence handling
+- [ ] Generate candidate behavior scores automatically from model responses on frozen + rolling challenges
 - [ ] True optimizer/scheduler/RNG checkpoint resume
 - [ ] Run the newest complete regression suite locally
 - [ ] Run capture pipeline against the real preserved Alpha/Bunny capture collection
