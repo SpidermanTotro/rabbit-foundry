@@ -74,13 +74,23 @@ def build_rolling_challenge(
     }
 
 
-def quality_gate(anchor_score: float, rolling_score: float, previous_rolling_score: float | None = None) -> dict:
-    if not all(0.0 <= value <= 1.0 for value in (anchor_score, rolling_score)):
+def quality_gate(
+    anchor_score: float,
+    rolling_score: float,
+    previous_rolling_score: float | None = None,
+    *,
+    anchor_floor: float = 0.0,
+) -> dict:
+    values = [anchor_score, rolling_score, anchor_floor]
+    if previous_rolling_score is not None:
+        values.append(previous_rolling_score)
+    if not all(0.0 <= value <= 1.0 for value in values):
         raise ValueError("quality scores must be between 0 and 1")
-    no_anchor_regression = anchor_score >= 0.0
+    no_anchor_regression = anchor_score >= anchor_floor
     rolling_improved = previous_rolling_score is None or rolling_score >= previous_rolling_score
     return {
         "anchor_score": anchor_score,
+        "anchor_floor": anchor_floor,
         "rolling_score": rolling_score,
         "previous_rolling_score": previous_rolling_score,
         "no_anchor_regression": no_anchor_regression,
