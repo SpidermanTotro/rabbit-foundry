@@ -110,29 +110,32 @@ def _hidden_diff_rows(files: list[IngestedFile], window: int) -> list[dict]:
             before_bytes = episode.broken.encode("utf-8")
             after_bytes = episode.target.encode("utf-8")
             matcher = difflib.SequenceMatcher(None, before_bytes, after_bytes, autojunk=False)
-            span_index = 0
-            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-                # The bytewise LM objective is only valid where prompt and target
-                # positions correspond one-for-one. Insert/delete and unequal
-                # replacement spans would shift offsets and create false labels.
-                if tag != "replace" or (i2 - i1) != (j2 - j1):
+            opcodes = matcher.get_opcodes()
+            unsafe = any(
+                tag in {"insert", "delete"} or
+                (tag == "replace" and (i2 - i1) != (j2 - j1))
+                for tag, i1, i2, j1, j2 in opcodes
+            )
+            # Only create byte-position labels when the complete revision pair
+            # remains one-for-one aligned. This permits small equal-length edits
+            # to borrow unchanged context while still rejecting shifted bytes.
+            if unsafe or len(before_bytes) != len(after_bytes):
+                continue
+            for start in range(0, len(before_bytes) - window + 1, window):
+                prompt = before_bytes[start:start + window]
+                target = after_bytes[start:start + window]
+                if prompt == target:
                     continue
-                span_before = before_bytes[i1:i2]
-                span_after = after_bytes[j1:j2]
-                if len(span_before) < window:
-                    continue
-                for start in range(0, len(span_before) - window + 1, window):
-                    rows.append(_row(
-                        f"{episode.episode_id}-span{span_index:04d}-{start:08x}",
-                        episode.skill,
-                        episode.source_repository,
-                        after_item.commit,
-                        episode.source_path,
-                        span_before[start:start + window],
-                        span_after[start:start + window],
-                        source_before_commit=before_item.commit,
-                    ))
-                span_index += 1
+                rows.append(_row(
+                    f"{episode.episode_id}-aligned-{start:08x}",
+                    episode.skill,
+                    episode.source_repository,
+                    after_item.commit,
+                    episode.source_path,
+                    prompt,
+                    target,
+                    source_before_commit=before_item.commit,
+                ))
     return rows
 
 
