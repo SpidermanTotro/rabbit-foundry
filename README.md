@@ -70,6 +70,16 @@ python -m rabbit_foundry.experiment \
 
 The optional improvement threshold prevents a numerically tiny held-out loss difference from being reported as a meaningful winner.
 
+### Audit Rabbit-native export readiness
+
+```bash
+python scripts/check_rabbit_export.py \
+  --checkpoint runs/latest/winner.pt \
+  --out runs/latest/export-readiness.json
+```
+
+TinyRabbitLM is currently a custom byte-level PyTorch architecture. The audit deliberately reports it as **not yet GGUF/llama.cpp compatible** rather than pretending a Hugging Face/Llama converter can consume it. A real export requires either a TinyRabbit llama.cpp architecture/tokenizer mapping or a Rabbit-native training architecture already supported by llama.cpp.
+
 ## Current capability
 
 - [x] Tiny causal LM
@@ -94,5 +104,7 @@ The optional improvement threshold prevents a numerically tiny held-out loss dif
 - [x] Frozen Alpha holdout evaluation manifest with exact-set and per-case coverage guards
 - [x] Space Bunny checkpoint/GGUF structural inventory (directory stats, provenance JSON, GGUF magic)
 - [ ] Run the Space Bunny inventory against the real local artifacts and record hashes
+- [x] Rabbit-native checkpoint/export-readiness audit
+- [ ] TinyRabbit llama.cpp architecture + tokenizer mapping (or supported native architecture migration)
 - [ ] Rabbit-native GGUF conversion adapter
 - [ ] llama.cpp post-export verification
