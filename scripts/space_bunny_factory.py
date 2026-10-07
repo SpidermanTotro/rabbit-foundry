@@ -13,7 +13,7 @@ def run(cmd: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Space Bunny -> Rabbit Foundry one-command pipeline")
+    parser = argparse.ArgumentParser(description="Space Bunny -> Rabbit Code backend pipeline")
     parser.add_argument("frozen_cases", help="six frozen Alpha cases JSONL")
     parser.add_argument("--workdir", default="runs/space-bunny/factory")
     parser.add_argument("--python", default=sys.executable)
