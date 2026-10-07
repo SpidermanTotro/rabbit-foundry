@@ -20,7 +20,7 @@ class SequenceRouter:
         return self.config
 
     def complete(self, provider_id, messages, *, max_tokens=1024):
-        self.calls.append(messages)
+        self.calls.append([dict(message) for message in messages])
         content = self.outputs.pop(0)
         return {
             "choices": [{
