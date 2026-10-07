@@ -7,8 +7,8 @@ import urllib.request
 from pathlib import Path
 
 from rabbit_foundry.space_bunny_compare import compare_space_bunny
+from rabbit_foundry.space_bunny_failover import run_with_failover
 from rabbit_foundry.space_bunny_fingerprint import FROZEN_ALPHA_IDS
-
 
 DEFAULT_ENDPOINT = "https://opencode.ai/zen/v1/chat/completions"
 DEFAULT_MODEL = "space-bunny-free"
@@ -27,19 +27,17 @@ def run_case(endpoint: str, model: str, case: dict, timeout: int = 120, api_key:
     messages = case.get("messages")
     if not isinstance(messages, list) or not messages:
         raise ValueError(f"{case.get('id')} needs messages")
-    payload = json.dumps({"model": model, "messages": messages}).encode()
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     request = urllib.request.Request(
         endpoint,
-        data=payload,
-        headers={"Content-Type": "application/json"},
+        data=json.dumps({"model": model, "messages": messages}).encode(),
+        headers=headers,
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = json.loads(response.read())
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        hint = ""\n        if exc.code in (401, 403):\n            hint = " (authentication/access failure: set OPENCODE_ZEN_API_KEY or use an authorized endpoint)"\n        elif exc.code == 404:\n            hint = " (endpoint/model route not found)"\n        elif exc.code == 429:\n            hint = " (rate limit or quota)"\n        raise RuntimeError(f"Space Bunny HTTP {exc.code}{hint}: {detail}") from exc
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        body = json.loads(response.read())
     choices = body.get("choices")
     if not isinstance(choices, list) or not choices:
         raise ValueError("Space Bunny response has no choices")
@@ -49,11 +47,18 @@ def run_case(endpoint: str, model: str, case: dict, timeout: int = 120, api_key:
     return message["content"]
 
 
+def run_case_with_failover(case: dict, model: str, preferred: str) -> tuple[str, str]:
+    def call(route, key):
+        return run_case(route.endpoint, model, case, api_key=key)
+    response, route = run_with_failover(call, preferred=preferred)
+    return response, route.name
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the frozen six-case fingerprint against current Space Bunny Free")
-    parser.add_argument("cases", help="JSONL containing the six frozen Alpha cases")
-    parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
-    parser.add_argument("--model", default=DEFAULT_MODEL)\n    parser.add_argument("--api-key-env", default="OPENCODE_ZEN_API_KEY")
+    parser = argparse.ArgumentParser(description="Run frozen Alpha fingerprint against current Space Bunny")
+    parser.add_argument("cases")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--preferred-route", choices=("zen", "go"), default="zen")
     parser.add_argument("--out-dir", default="runs/space-bunny/live-fingerprint")
     parser.add_argument("--threshold", type=float, default=0.60)
     args = parser.parse_args()
@@ -66,15 +71,14 @@ def main() -> None:
     responses_path = out_dir / "responses.jsonl"
     with responses_path.open("w") as handle:
         for case_id in FROZEN_ALPHA_IDS:
-            response = run_case(args.endpoint, args.model, cases[case_id], api_key=os.environ.get(args.api_key_env))
-            handle.write(json.dumps({"id": case_id, "response": response}) + "\n")
-            print(f"{case_id}: captured")
+            response, route = run_case_with_failover(cases[case_id], args.model, args.preferred_route)
+            handle.write(json.dumps({
+                "id": case_id, "response": response, "route": route,
+                "evaluation_only": True, "trainable": False,
+            }) + "\n")
+            print(f"{case_id}: captured via {route}")
 
-    report = compare_space_bunny(
-        responses_path,
-        out_dir / "comparison.json",
-        threshold=args.threshold,
-    )
+    report = compare_space_bunny(responses_path, out_dir / "comparison.json", threshold=args.threshold)
     print(json.dumps(report, indent=2))
 
 
