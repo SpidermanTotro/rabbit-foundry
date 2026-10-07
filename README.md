@@ -181,6 +181,20 @@ python -m rabbit_foundry.train \
 
 The run ledger records whether behavioral evidence was actually provided. A promoted model is saved as `winner.pt`.
 
+## Local Rabbit Preview bridge
+
+An owned Rabbit checkpoint can be exposed to local coding agents through a minimal OpenAI-compatible interface:
+
+```bash
+python -m rabbit_foundry.preview_server \
+  --checkpoint runs/latest/winner.pt \
+  --capture runs/preview/captures.jsonl
+```
+
+The server binds to `127.0.0.1:8765` by default and exposes `GET /v1/models` plus `POST /v1/chat/completions`. Configure a compatible local client with base URL `http://127.0.0.1:8765/v1` and model `rabbit-preview`.
+
+Preview captures include a safe allowlisted host-environment snapshot and redacted messages/responses. They can later pass through the normal capture-course/provenance pipeline. The preview bridge does not extract or copy provider model weights.
+
 ## Export boundary
 
 TinyRabbitLM is currently a custom byte-level PyTorch architecture, not a llama.cpp-supported Llama/Qwen architecture. Rabbit Foundry therefore audits export readiness instead of pretending generic GGUF conversion works:
@@ -237,7 +251,8 @@ pytest -q
 - [x] Meaningful-winner threshold
 - [x] Space Bunny artifact structural inventory
 - [x] Rabbit-native checkpoint/export-readiness audit
-- [ ] Live provider proxy/logger capture (current provider ingestion uses intentional exports)
+- [x] Local Rabbit Preview OpenAI-compatible bridge + redacted capture
+- [ ] Live third-party provider proxy/logger capture
 - [x] Behavioral score gate wired into Greenlight with fail-closed evidence handling
 - [ ] Generate candidate behavior scores automatically from model responses on frozen + rolling challenges
 - [x] True optimizer/RNG checkpoint resume (no scheduler exists yet)
