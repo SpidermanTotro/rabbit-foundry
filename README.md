@@ -1,61 +1,91 @@
 # Rabbit Foundry 🐇🏭
 
-Rabbit Foundry is an experimental, local-first model-building and Bunny-lineage research system.
+Rabbit Foundry is a local-first model research and behavioral-training foundry.
 
-## Research tracks
+Its primary workflow now understands **captured Alpha/Bunny behavior as a training course**: raw behavioral captures are normalized, audited, separated into eligible training material and frozen evaluation material, converted into deterministic training episodes, trained with TwinTrain, and promoted only through Greenlight.
 
-### Rabbit-native
+Rabbit-native teacher-free GitHub learning remains a separate research track.
 
-The native experiment starts from random weights and does not require pretrained weights or teacher-model answers. It learns from pinned GitHub-derived byte tasks:
+## Alpha/Bunny capture → training pipeline
+
+```text
+raw Alpha/Bunny captures
+        ↓
+capture-course normalization
+        ↓
+axis + provenance audit
+        ↓
+┌──────────────────────┬────────────────────────┐
+│ eligible behavior    │ six frozen Alpha cases │
+│ training             │ evaluation only        │
+└──────────┬───────────┴────────────┬───────────┘
+           ↓                        ↓
+ Bunny training episodes       frozen holdout
+           ↓                        │
+           └──────── TwinTrain ─────┘
+                       ↓
+                   Greenlight
+                       ↓
+                   winner.pt
+```
+
+The six frozen Alpha IDs are never permitted into training:
+
+- `011-partial-failure`
+- `014-instruction-conflict`
+- `016-guess-discipline`
+- `028-ambiguous-request`
+- `031-test-first-request`
+- `034-anti-sycophancy`
+
+### Prepare captured behavior
+
+Pass one or more JSON/JSONL capture files:
+
+```bash
+python scripts/prepare_alpha_bunny_training.py \
+  captures/*.jsonl \
+  --out-dir runs/alpha-bunny \
+  --window 128
+```
+
+This writes:
+
+- `course/alpha_training.jsonl`
+- `course/alpha_holdout.jsonl`
+- `course/rejected.json`
+- `course/capture_manifest.json`
+- `training_episodes.json`
+- `alpha_holdout_episodes.json`
+- `pipeline.json`
+
+Malformed captures are quarantined. Duplicate capture IDs are rejected. Behavior axes such as coding/debugging/self-correction/tool/persona are normalized. Source files and generated courses are hashed.
+
+By default the pipeline requires the complete six-case Alpha holdout before calling the preparation complete.
+
+### Train the captured course
+
+```bash
+python -m rabbit_foundry.train \
+  --episodes runs/alpha-bunny/training_episodes.json \
+  --episode-kind bunny \
+  --sampling adaptive \
+  --minimum-relative-improvement 0.01 \
+  --run-dir runs/alpha-bunny/train \
+  --device auto
+```
+
+Alpha/Space Bunny lineage training is explicitly labeled `alpha-space-bunny`; it is **not** reported as Rabbit-native teacher-free training.
+
+## Rabbit-native research track
+
+The separate native experiment starts from random weights and learns from pinned GitHub-derived byte tasks without teacher-model answers:
 
 - code prediction
 - deterministic code repair
-- hidden revision differences
+- safely aligned hidden revision differences
 
-TwinTrain compares candidates with frozen held-out evaluation, Greenlight promotion, and fixed-vs-adaptive equal-compute experiments. Hidden-diff byte training is deliberately restricted to equal-length changed spans so insertions/deletions cannot create false offset-aligned labels.
-
-### Alpha / Space Bunny lineage
-
-Foundry also preserves and imports eligible behavioral training material from the Alpha → Space Bunny project. This is a **separately labeled lineage**, not the teacher-free native experiment.
-
-The six frozen Alpha holdout captures are mechanically blocked from training imports. Large model weights and GGUFs remain outside Git; their provenance is cataloged in `configs/bunny_lineage.json`.
-
-See `docs/BUNNY_LINEAGE.md`.
-
-## Safety and evaluation boundaries
-
-Repository code is untrusted input. Build/test execution belongs in the locked Podman sandbox with networking disabled, read-only source mounts, dropped capabilities, and resource/time limits.
-
-Historical revisions of the same repository/path stay in one dataset partition to reduce evaluation leakage. Bunny training imports preserve source SHA-256, keep every capture family in one train/validation/test partition, preserve Alpha behavior axes, and keep the six frozen Alpha holdouts separate.
-
-## Quick start
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest -q
-python -m rabbit_foundry.train --steps 20 --device auto
-```
-
-### Import Bunny lineage data
-
-```bash
-python scripts/import_bunny_jsonl.py \
-  --source /path/to/eligible-bunny-training.jsonl \
-  --out runs/bunny/episodes.json \
-  --window 128
-
-python -m rabbit_foundry.train \
-  --episodes runs/bunny/episodes.json \
-  --episode-kind bunny \
-  --sampling adaptive \
-  --run-dir runs/bunny/adaptive
-```
-
-Outputs are written beneath `runs/`.
-
-### Run the Rabbit-native fixed-vs-adaptive experiment
+Historical revisions of one repository/path remain in one dataset partition. Hidden-diff byte training uses only equal-length changed spans; insertion/deletion shifts are not treated as aligned targets.
 
 ```bash
 python -m rabbit_foundry.experiment \
@@ -68,9 +98,15 @@ python -m rabbit_foundry.experiment \
   --device auto
 ```
 
-The optional improvement threshold prevents a numerically tiny held-out loss difference from being reported as a meaningful winner.
+Fixed and adaptive arms receive equal compute and identical frozen validation. A tiny numerical loss difference does not need to be declared a meaningful winner.
 
-### Audit Rabbit-native export readiness
+## Greenlight
+
+Greenlight rejects non-finite candidates and can require a minimum relative held-out improvement before promotion. A promoted model is saved as `winner.pt`.
+
+## Export boundary
+
+TinyRabbitLM is currently a custom byte-level PyTorch architecture, not a llama.cpp-supported Llama/Qwen architecture. Rabbit Foundry therefore audits export readiness instead of pretending generic GGUF conversion works:
 
 ```bash
 python scripts/check_rabbit_export.py \
@@ -78,33 +114,52 @@ python scripts/check_rabbit_export.py \
   --out runs/latest/export-readiness.json
 ```
 
-TinyRabbitLM is currently a custom byte-level PyTorch architecture. The audit deliberately reports it as **not yet GGUF/llama.cpp compatible** rather than pretending a Hugging Face/Llama converter can consume it. A real export requires either a TinyRabbit llama.cpp architecture/tokenizer mapping or a Rabbit-native training architecture already supported by llama.cpp.
+A real native GGUF requires either a TinyRabbit llama.cpp architecture/tokenizer implementation or migration of the native brain to an architecture llama.cpp already supports.
+
+## Safety and provenance
+
+- Alpha provider weights are unavailable and are not extracted or bypassed.
+- Observable eligible Alpha behavior may be used as behavioral training material.
+- The six designated Alpha holdout captures remain evaluation-only.
+- Space Bunny checkpoints/GGUFs stay external to Git and retain their own lineage.
+- Rabbit-native experiments remain separately labeled.
+- Repository code is untrusted input and belongs in the locked sandbox for execution.
+
+Machine-readable lineage policy: `configs/bunny_lineage.json`.
+
+## Development
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
+```
 
 ## Current capability
 
-- [x] Tiny causal LM
-- [x] Twin A/B training controller
-- [x] Held-out evaluation and winner selection
-- [x] JSON experiment ledger
-- [x] Adaptive weakness-driven resampling
-- [x] Read-only pinned GitHub provenance/episode builder
-- [x] Prediction + repair + hidden-diff curricula
-- [x] File-family split protection across revisions
-- [x] Frozen held-out episode batches
-- [x] Equal-compute fixed-vs-adaptive experiment runner
-- [x] Locked Podman sandbox runner
-- [x] Greenlight promotion gate
-- [x] Alpha/Space Bunny lineage inventory
-- [x] Alpha holdout contamination guard
-- [x] Bunny conversational JSONL → episode importer
-- [x] Bunny-lineage TwinTrain mode
-- [ ] Run full local regression suite after newest integration commits
-- [ ] Import and hash the real local Bunny training corpus into a run manifest
-- [x] Preserve per-row Bunny axes (code/debug/persona/selfcorr/tool) in curriculum
-- [x] Frozen Alpha holdout evaluation manifest with exact-set and per-case coverage guards
-- [x] Space Bunny checkpoint/GGUF structural inventory (directory stats, provenance JSON, GGUF magic)
-- [ ] Run the Space Bunny inventory against the real local artifacts and record hashes
+- [x] Raw Alpha/Bunny JSON + JSONL capture ingestion
+- [x] Capture normalization and quarantine
+- [x] Behavior-axis normalization
+- [x] Capture provenance + SHA-256 course manifests
+- [x] Automatic eligible-training / frozen-holdout routing
+- [x] Mechanical Alpha holdout contamination guard
+- [x] Complete-six holdout requirement for normal pipeline preparation
+- [x] Capture-family train/validation/test isolation
+- [x] Bunny behavioral episodes
+- [x] Adaptive Bunny curriculum
+- [x] TwinTrain + Greenlight promotion
+- [x] Rabbit-native GitHub prediction/repair/hidden-diff research
+- [x] Leak-resistant file-family splitting
+- [x] Equal-compute fixed-vs-adaptive experiment
+- [x] Meaningful-winner threshold
+- [x] Space Bunny artifact structural inventory
 - [x] Rabbit-native checkpoint/export-readiness audit
-- [ ] TinyRabbit llama.cpp architecture + tokenizer mapping (or supported native architecture migration)
-- [ ] Rabbit-native GGUF conversion adapter
-- [ ] llama.cpp post-export verification
+- [ ] Run the newest complete regression suite locally
+- [ ] Run capture pipeline against the real preserved Alpha/Bunny capture collection
+- [ ] Record the real course hashes and episode counts
+- [ ] Evaluate trained candidates against the six frozen Alpha cases with behavioral metrics
+- [ ] TinyRabbit llama.cpp architecture/tokenizer mapping or supported architecture migration
+- [ ] Rabbit-native GGUF + llama.cpp verification
+
+See `docs/BUNNY_LINEAGE.md` for the preserved lineage boundary.
