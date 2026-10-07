@@ -306,6 +306,19 @@ class AgentLoop:
         fallback_context_used = False
         provider = self.runtime.router.provider(self.runtime.provider_id)
         native_tools_enabled = provider.supports_tools
+        if native_tools_enabled and hasattr(self.runtime.router, "probe"):
+            probe = self.runtime.router.probe(self.runtime.provider_id)
+            health = probe.get("health") if isinstance(probe, dict) else None
+            if (
+                isinstance(health, dict)
+                and health.get("mode") == "rabbit-code-model-gateway"
+            ):
+                protocol = health.get("protocol_version", 0)
+                native_tools_enabled = bool(
+                    health.get("tools")
+                    and isinstance(protocol, int)
+                    and protocol >= 2
+                )
 
         for step in range(1, self.max_steps + 1):
             try:
