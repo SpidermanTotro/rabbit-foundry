@@ -10,7 +10,7 @@ from rabbit_foundry.space_bunny_compare import compare_space_bunny
 from rabbit_foundry.space_bunny_fingerprint import FROZEN_ALPHA_IDS
 
 
-DEFAULT_ENDPOINT = "https://opencode.ai/inference/openai/v1/chat/completions"
+DEFAULT_ENDPOINT = "https://opencode.ai/zen/v1/chat/completions"
 DEFAULT_MODEL = "space-bunny-free"
 
 
@@ -23,7 +23,7 @@ def load_cases(path: str | Path) -> dict[str, dict]:
     return by_id
 
 
-def run_case(endpoint: str, model: str, case: dict, timeout: int = 120) -> str:
+def run_case(endpoint: str, model: str, case: dict, timeout: int = 120, api_key: str | None = None) -> str:
     messages = case.get("messages")
     if not isinstance(messages, list) or not messages:
         raise ValueError(f"{case.get('id')} needs messages")
@@ -39,7 +39,7 @@ def run_case(endpoint: str, model: str, case: dict, timeout: int = 120) -> str:
             body = json.loads(response.read())
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"Space Bunny HTTP {exc.code}: {detail}") from exc
+        hint = ""\n        if exc.code in (401, 403):\n            hint = " (authentication/access failure: set OPENCODE_ZEN_API_KEY or use an authorized endpoint)"\n        elif exc.code == 404:\n            hint = " (endpoint/model route not found)"\n        elif exc.code == 429:\n            hint = " (rate limit or quota)"\n        raise RuntimeError(f"Space Bunny HTTP {exc.code}{hint}: {detail}") from exc
     choices = body.get("choices")
     if not isinstance(choices, list) or not choices:
         raise ValueError("Space Bunny response has no choices")
@@ -53,7 +53,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run the frozen six-case fingerprint against current Space Bunny Free")
     parser.add_argument("cases", help="JSONL containing the six frozen Alpha cases")
     parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
-    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--model", default=DEFAULT_MODEL)\n    parser.add_argument("--api-key-env", default="OPENCODE_ZEN_API_KEY")
     parser.add_argument("--out-dir", default="runs/space-bunny/live-fingerprint")
     parser.add_argument("--threshold", type=float, default=0.60)
     args = parser.parse_args()
@@ -66,7 +66,7 @@ def main() -> None:
     responses_path = out_dir / "responses.jsonl"
     with responses_path.open("w") as handle:
         for case_id in FROZEN_ALPHA_IDS:
-            response = run_case(args.endpoint, args.model, cases[case_id])
+            response = run_case(args.endpoint, args.model, cases[case_id], api_key=os.environ.get(args.api_key_env))
             handle.write(json.dumps({"id": case_id, "response": response}) + "\n")
             print(f"{case_id}: captured")
 
