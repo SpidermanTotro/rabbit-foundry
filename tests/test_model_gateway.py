@@ -1,10 +1,10 @@
 import json
 import threading
-import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-from rabbit_foundry.model_gateway import Handler, MODEL_ID
+import rabbit_foundry.model_gateway as model_gateway
+from rabbit_foundry.model_gateway import GATEWAY_PROTOCOL, Handler, MODEL_ID
 
 
 def serve():
@@ -14,11 +14,24 @@ def serve():
     return server, thread
 
 
-def test_gateway_advertises_rabbit_code_model():
+def test_gateway_advertises_current_protocol_and_model():
     server, thread = serve()
     try:
         host, port = server.server_address
-        with urllib.request.urlopen(f"http://{host}:{port}/v1/models", timeout=5) as response:
+        with urllib.request.urlopen(
+            f"http://{host}:{port}/health",
+            timeout=5,
+        ) as response:
+            health = json.loads(response.read())
+        assert health["status"] == "ok"
+        assert health["protocol_version"] == GATEWAY_PROTOCOL == 2
+        assert health["tools"] is True
+        assert health["streaming"] is True
+
+        with urllib.request.urlopen(
+            f"http://{host}:{port}/v1/models",
+            timeout=5,
+        ) as response:
             body = json.loads(response.read())
         assert MODEL_ID == "rabbit-code"
         assert body["data"][0]["id"] == "rabbit-code"
@@ -29,14 +42,45 @@ def test_gateway_advertises_rabbit_code_model():
         thread.join(timeout=5)
 
 
-def test_gateway_rejects_tool_requests_until_supported():
+def test_gateway_passes_native_tools_to_upstream(monkeypatch):
+    seen = {}
+
+    def fake_request_json(url, payload=None):
+        seen["url"] = url
+        seen["payload"] = payload
+        return 200, {
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {
+                            "name": "read",
+                            "arguments": '{"path":"README.md"}',
+                        },
+                    }],
+                }
+            }]
+        }
+
+    monkeypatch.setattr(model_gateway, "request_json", fake_request_json)
     server, thread = serve()
     try:
         host, port = server.server_address
+        tools = [{
+            "type": "function",
+            "function": {
+                "name": "read",
+                "parameters": {"type": "object"},
+            },
+        }]
         payload = json.dumps({
             "model": "rabbit-code",
-            "messages": [{"role": "user", "content": "hello"}],
-            "tools": [{"type": "function", "function": {"name": "noop"}}],
+            "messages": [{"role": "user", "content": "inspect"}],
+            "tools": tools,
+            "stream": False,
         }).encode()
         request = urllib.request.Request(
             f"http://{host}:{port}/v1/chat/completions",
@@ -44,15 +88,14 @@ def test_gateway_rejects_tool_requests_until_supported():
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        try:
-            urllib.request.urlopen(request, timeout=5)
-        except urllib.error.HTTPError as exc:
-            assert exc.code == 400
-            body = json.loads(exc.read())
-        else:
-            raise AssertionError("tool requests must fail closed")
+        with urllib.request.urlopen(request, timeout=5) as response:
+            body = json.loads(response.read())
 
-        assert "tool calling not enabled" in body["error"]["message"]
+        assert seen["url"].endswith("/v1/chat/completions")
+        assert seen["payload"]["model"] == model_gateway.UPSTREAM_MODEL
+        assert seen["payload"]["tools"] == tools
+        assert body["model"] == "rabbit-code"
+        assert body["choices"][0]["message"]["tool_calls"][0]["function"]["name"] == "read"
     finally:
         server.shutdown()
         server.server_close()
