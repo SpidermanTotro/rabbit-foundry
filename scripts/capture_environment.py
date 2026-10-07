@@ -8,7 +8,7 @@ from rabbit_foundry.environment import write_environment_snapshot
 
 def main() -> None:
     import argparse
-    parser = argparse.ArgumentParser(description="Capture a safe Rabbit Foundry host-environment snapshot")
+    parser = argparse.ArgumentParser(description="Capture a safe Rabbit Code host-environment snapshot")
     parser.add_argument("--out", default="runs/environment.json")
     args = parser.parse_args()
     snapshot = write_environment_snapshot(Path(args.out))
