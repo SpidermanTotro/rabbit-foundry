@@ -38,3 +38,18 @@ def test_import_kilo_style_messages_and_output(tmp_path):
     assert result["providers"] == {"kilo": 1}
     assert row["capture_kind"] == "provider-preview"
     assert row["messages"][-1]["content"] == "candidate repair"
+
+
+def test_redacts_secret_embedded_in_message_content(tmp_path):
+    source = tmp_path / "secret.json"
+    source.write_text(json.dumps({
+        "provider": "openrouter",
+        "messages": [{"role": "user", "content": "use OPENROUTER_API_KEY=super-secret to debug"}],
+        "output": "Authorization: Bearer another-secret",
+    }))
+    out = tmp_path / "captures.jsonl"
+    import_provider_exports([source], out)
+    saved = out.read_text()
+    assert "super-secret" not in saved
+    assert "another-secret" not in saved
+    assert "<redacted>" in saved
