@@ -14,7 +14,7 @@ from .model import ModelConfig, TinyRabbitLM
 from .provider_capture import redact_text
 
 
-class RabbitPreview:
+class RabbitNative:
     def __init__(self, checkpoint: str | Path, capture_path: str | Path | None = None):
         payload = torch.load(Path(checkpoint), map_location="cpu", weights_only=False)
         if not isinstance(payload, dict) or not isinstance(payload.get("config"), dict):
@@ -59,7 +59,7 @@ class RabbitPreview:
         row = {
             "id": str(uuid.uuid4()),
             "axis": "tool",
-            "provider": "rabbit-preview",
+            "provider": "rabbit-native",
             "environment": self.environment,
             "messages": messages + [{"role": "assistant", "content": response}],
         }
@@ -67,7 +67,7 @@ class RabbitPreview:
             handle.write(json.dumps(row) + "\n")
 
 
-def handler_for(preview: RabbitPreview):
+def handler_for(preview: RabbitNative):
     class Handler(BaseHTTPRequestHandler):
         def _json(self, status: int, payload: dict) -> None:
             body = json.dumps(payload).encode()
@@ -80,7 +80,7 @@ def handler_for(preview: RabbitPreview):
         def do_GET(self):
             if self.path == "/v1/models":
                 self._json(200, {"object": "list", "data": [
-                    {"id": "rabbit-preview", "object": "model", "owned_by": "rabbit-foundry"}
+                    {"id": "rabbit-native", "object": "model", "owned_by": "rabbit-foundry"}
                 ]})
             else:
                 self._json(404, {"error": {"message": "not found"}})
@@ -101,7 +101,7 @@ def handler_for(preview: RabbitPreview):
                     "id": f"chatcmpl-{uuid.uuid4().hex}",
                     "object": "chat.completion",
                     "created": now,
-                    "model": "rabbit-preview",
+                    "model": "rabbit-native",
                     "choices": [{
                         "index": 0,
                         "message": {"role": "assistant", "content": answer},
@@ -118,15 +118,15 @@ def handler_for(preview: RabbitPreview):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Local OpenAI-compatible Rabbit Preview server")
+    parser = argparse.ArgumentParser(description="Local OpenAI-compatible Rabbit Native server")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--capture", default="runs/preview/captures.jsonl")
     args = parser.parse_args()
-    preview = RabbitPreview(args.checkpoint, args.capture)
+    preview = RabbitNative(args.checkpoint, args.capture)
     server = ThreadingHTTPServer((args.host, args.port), handler_for(preview))
-    print(f"Rabbit Preview listening on http://{args.host}:{args.port}/v1")
+    print(f"Rabbit Native listening on http://{args.host}:{args.port}/v1")
     server.serve_forever()
 
 
