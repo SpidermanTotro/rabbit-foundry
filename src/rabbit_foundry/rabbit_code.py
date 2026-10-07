@@ -33,6 +33,7 @@ The same commands can also be run directly from Bash without the leading slash:
   rabbit-code read README.md
   rabbit-code git-status
   rabbit-code agent "inspect this repository"
+  rabbit-code --stream chat "hello from Rabbit Code"
 
 Writes require --allow-write.
 Sandbox execution requires --allow-exec and always runs with Podman network
@@ -55,6 +56,8 @@ def build_runtime(args) -> RabbitCodeRuntime:
         base_url=args.base_url,
         model=args.model,
         api_key_env=args.api_key_env,
+        supports_streaming=not args.no_streaming,
+        supports_tools=not args.no_native_tools,
     ))
     session_root = Path(args.session_dir)
     if not session_root.is_absolute():
@@ -141,6 +144,16 @@ def execute_command(
             approved=args.allow_exec,
         )
         print(json.dumps(result, indent=2))
+    elif command == "chat":
+        if len(parts) < 2:
+            raise ValueError("usage: chat MESSAGE")
+        text = " ".join(parts[1:])
+        if args.stream:
+            for chunk in runtime.ask_stream(text, max_tokens=args.max_tokens):
+                print(chunk, end="", flush=True)
+            print()
+        else:
+            print(runtime.ask(text, max_tokens=args.max_tokens))
     else:
         raise ValueError(f"unknown Rabbit Code command: {parts[0]}")
     return False
@@ -160,6 +173,9 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-exec", action="store_true")
     parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument("--agent-steps", type=int, default=8)
+    parser.add_argument("--stream", action="store_true")
+    parser.add_argument("--no-streaming", action="store_true")
+    parser.add_argument("--no-native-tools", action="store_true")
     parser.add_argument(
         "command",
         nargs="?",
@@ -204,8 +220,24 @@ def main() -> None:
 
         try:
             parts = shlex.split(line)
-            if execute_command(runtime, args, parts):
-                return
+            known = {
+                "help", "capabilities", "agent", "list", "read", "grep",
+                "write", "edit", "git-status", "git-diff", "test",
+                "chat", "quit", "exit",
+            }
+            first = _normalize_command(parts[0]) if parts else ""
+            if line.startswith("/") or first in known:
+                if execute_command(runtime, args, parts):
+                    return
+            elif args.stream:
+                for chunk in runtime.ask_stream(
+                    line,
+                    max_tokens=args.max_tokens,
+                ):
+                    print(chunk, end="", flush=True)
+                print()
+            else:
+                print(runtime.ask(line, max_tokens=args.max_tokens))
         except Exception as exc:
             print(f"error: {exc}")
 
