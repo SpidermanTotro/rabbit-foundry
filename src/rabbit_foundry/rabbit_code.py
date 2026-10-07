@@ -14,13 +14,22 @@ from .workspace import Workspace
 
 HELP = """Commands:
   /help
+  /capabilities
   /list [glob]
   /read PATH
   /grep NEEDLE [glob]
   /write PATH TEXT
+  /edit PATH OLD NEW
+  /git-status
+  /git-diff [PATH]
+  /test IMAGE COMMAND [ARG ...]
   /quit
 
 Any other line is sent to the selected model.
+
+Writes require --allow-write.
+Sandbox execution requires --allow-exec and always runs with Podman network
+disabled through the Rabbit backend sandbox.
 """
 
 
@@ -29,7 +38,7 @@ def build_runtime(args) -> RabbitCodeRuntime:
         read=Decision.ALLOW,
         search=Decision.ALLOW,
         write=Decision.ALLOW if args.allow_write else Decision.ASK,
-        execute=Decision.DENY,
+        execute=Decision.ALLOW if args.allow_exec else Decision.ASK,
         network=Decision.ALLOW if args.allow_network else Decision.DENY,
     )
     workspace = Workspace(Path(args.workspace), policy)
@@ -57,6 +66,7 @@ def main() -> None:
     parser.add_argument("--session-dir", default=".rabbit-code/sessions")
     parser.add_argument("--allow-network", action="store_true")
     parser.add_argument("--allow-write", action="store_true")
+    parser.add_argument("--allow-exec", action="store_true")
     parser.add_argument("--max-tokens", type=int, default=1024)
     args = parser.parse_args()
 
@@ -84,7 +94,9 @@ def main() -> None:
         try:
             parts = shlex.split(line)
             command = parts[0] if parts else ""
-            if command == "/list":
+            if command == "/capabilities":
+                print(json.dumps(runtime.capabilities(), indent=2))
+            elif command == "/list":
                 pattern = parts[1] if len(parts) > 1 else "**/*"
                 print("\n".join(runtime.list(pattern)))
             elif command == "/read":
@@ -99,9 +111,33 @@ def main() -> None:
             elif command == "/write":
                 if len(parts) < 3:
                     raise ValueError("usage: /write PATH TEXT")
-                path = parts[1]
-                content = " ".join(parts[2:])
-                print(runtime.write(path, content, approved=args.allow_write))
+                print(runtime.write(
+                    parts[1],
+                    " ".join(parts[2:]),
+                    approved=args.allow_write,
+                ))
+            elif command == "/edit":
+                if len(parts) != 4:
+                    raise ValueError("usage: /edit PATH OLD NEW")
+                print(runtime.edit(
+                    parts[1], parts[2], parts[3],
+                    approved=args.allow_write,
+                ))
+            elif command == "/git-status":
+                print(runtime.git_status(), end="")
+            elif command == "/git-diff":
+                if len(parts) > 2:
+                    raise ValueError("usage: /git-diff [PATH]")
+                print(runtime.git_diff(parts[1] if len(parts) == 2 else None), end="")
+            elif command == "/test":
+                if len(parts) < 3:
+                    raise ValueError("usage: /test IMAGE COMMAND [ARG ...]")
+                result = runtime.run_sandbox(
+                    parts[1],
+                    parts[2:],
+                    approved=args.allow_exec,
+                )
+                print(json.dumps(result, indent=2))
             elif command.startswith("/"):
                 raise ValueError(f"unknown command: {command}")
             else:

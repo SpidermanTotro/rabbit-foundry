@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from .permissions import PermissionPolicy
+from .sandbox import SandboxLimits, run_podman
 
 
 @dataclass
@@ -93,3 +95,74 @@ class Workspace:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
         return path
+
+    def replace_text(
+        self,
+        relative: str | Path,
+        old: str,
+        new: str,
+        *,
+        approved: bool = False,
+    ) -> Path:
+        self.permissions.require("write", approved=approved)
+        if not old:
+            raise ValueError("old text must not be empty")
+        path = self.resolve(relative)
+        original = self.read_text(relative)
+        occurrences = original.count(old)
+        if occurrences != 1:
+            raise ValueError(
+                f"expected exactly one match for edit, found {occurrences}"
+            )
+        path.write_text(original.replace(old, new, 1))
+        return path
+
+    def git_status(self) -> str:
+        self.permissions.require("search")
+        result = subprocess.run(
+            ["git", "-C", str(self.root), "status", "--short"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or "git status failed")
+        return result.stdout
+
+    def git_diff(self, relative: str | Path | None = None) -> str:
+        self.permissions.require("read")
+        command = ["git", "-C", str(self.root), "diff", "--"]
+        if relative is not None:
+            path = self.resolve(relative)
+            command.append(str(path.relative_to(self.root)))
+        result = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or "git diff failed")
+        return result.stdout
+
+    def run_sandbox(
+        self,
+        image: str,
+        command: list[str],
+        *,
+        approved: bool = False,
+        limits: SandboxLimits | None = None,
+    ) -> dict:
+        self.permissions.require("execute", approved=approved)
+        if not command or not all(isinstance(item, str) and item for item in command):
+            raise ValueError("sandbox command must be a non-empty argv list")
+        result = run_podman(image, self.root, command, limits)
+        return {
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
