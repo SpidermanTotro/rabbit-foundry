@@ -100,6 +100,21 @@ def evaluate_episode_batches(model, frozen_batches, device):
 
 
 @torch.no_grad()
+def heldout_next_byte_pass_rate(model, frozen_batches, device):
+    """Measured token accuracy on the same frozen validation batches."""
+    model.eval()
+    correct = total = 0
+    for x, y in frozen_batches:
+        logits, _ = model(x.to(device), y.to(device))
+        pred = logits.argmax(dim=-1)
+        target = y.to(device)
+        correct += int((pred == target).sum().item())
+        total += int(target.numel())
+    model.train()
+    return correct / total if total else 0.0
+
+
+@torch.no_grad()
 def evaluate(model, data, batch, seq, device, batches=8):
     model.eval()
     losses = []
@@ -180,11 +195,14 @@ def train_one(
             if skill is not None:
                 record["skill"] = skill
             history.append(record)
+    heldout_pass_rate = 0.0
     if finite and episode_mode:
         frozen = frozen_episode_batches(valid_data, batch, seq, seed=20261007, batches=8)
         val = evaluate_episode_batches(model, frozen, device)
+        heldout_pass_rate = heldout_next_byte_pass_rate(model, frozen, device)
     else:
         val = evaluate(model, valid_data, batch, seq, device) if finite else float("inf")
+        heldout_pass_rate = 0.0
     curriculum_state = curriculum.state() if curriculum is not None else None
     if checkpoint_state is not None:
         checkpoint_state.clear()
@@ -196,7 +214,7 @@ def train_one(
             "cuda_rng_state_all": torch.cuda.get_rng_state_all() if device.type == "cuda" else None,
             "curriculum_state": curriculum_state,
         })
-    return model, val, history, finite, curriculum_state
+    return model, val, heldout_pass_rate, history, finite, curriculum_state
 
 
 def main():
@@ -311,7 +329,7 @@ def main():
     scores = []
     for name, seed in (("A", 1337), ("B", 7331)):
         candidate_checkpoint_state = {}
-        model, val, history, finite, curriculum_state = train_one(
+        model, val, heldout_pass_rate, history, finite, curriculum_state = train_one(
             seed, cfg, train_data, valid_data, args.steps, args.batch, args.seq, device,
             episode_mode=episode_mode, sampling=args.sampling,
             initial_state_dict=initial_state_dict,
@@ -321,7 +339,7 @@ def main():
         training_states[name] = candidate_checkpoint_state
         models[name] = model
         results[name] = {
-            "seed": seed, "validation_loss": val, "history": history, "finite": finite,
+            "seed": seed, "validation_loss": val, "heldout_pass_rate": heldout_pass_rate, "history": history, "finite": finite,
             "curriculum": curriculum_state,
         }
         if behavior_cases is not None:
@@ -335,7 +353,7 @@ def main():
         else:
             behavior_score = behavior_scores.get(name)
         results[name]["behavior_score"] = behavior_score
-        scores.append(CandidateScore(name, val, 1.0, finite=finite, behavior_score=behavior_score))
+        scores.append(CandidateScore(name, val, heldout_pass_rate, finite=finite, behavior_score=behavior_score))
 
     decision = decide(
         scores[0], scores[1],
