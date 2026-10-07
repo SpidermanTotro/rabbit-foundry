@@ -8,7 +8,7 @@ from rabbit_foundry.bunny_pipeline import prepare_alpha_bunny_training
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Prepare captured Alpha/Bunny behavior for Rabbit Foundry training"
+        description="Prepare captured Alpha/Bunny behavior for Rabbit Code backend training"
     )
     parser.add_argument("captures", nargs="+", help="JSON/JSONL capture files")
     parser.add_argument("--out-dir", default="runs/alpha-bunny")
