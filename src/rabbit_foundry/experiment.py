@@ -107,7 +107,7 @@ def run_experiment(
 
 
 def main():
-    p = argparse.ArgumentParser(description="Rabbit Foundry fixed-vs-adaptive three-skill experiment")
+    p = argparse.ArgumentParser(description="Rabbit Code backend fixed-vs-adaptive three-skill experiment")
     p.add_argument("--episodes", required=True)
     p.add_argument("--out", default="runs/experiments/fixed-vs-adaptive.json")
     p.add_argument("--steps", type=int, default=100)
