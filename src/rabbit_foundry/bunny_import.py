@@ -119,14 +119,15 @@ def write_bunny_manifest(source: str | Path, out: str | Path, window: int = 128)
 
 
 def bunny_family_id(row: dict) -> str:
-    """Stable family key that keeps every chunk from one capture together."""
+    """Stable family key; legacy manifests fall back to their episode ID."""
     source_sha256 = row.get("source_sha256")
     capture_id = row.get("source_capture_id")
-    if not isinstance(source_sha256, str) or not source_sha256:
-        raise ValueError("Bunny episode is missing source_sha256")
-    if not isinstance(capture_id, str) or not capture_id:
-        raise ValueError("Bunny episode is missing source_capture_id")
-    return hashlib.sha256(f"{source_sha256}:{capture_id}".encode()).hexdigest()
+    if isinstance(source_sha256, str) and source_sha256 and isinstance(capture_id, str) and capture_id:
+        return hashlib.sha256(f"{source_sha256}:{capture_id}".encode()).hexdigest()
+    episode_id = row.get("episode_id")
+    if isinstance(episode_id, str) and episode_id:
+        return hashlib.sha256(f"legacy:{episode_id}".encode()).hexdigest()
+    raise ValueError("Bunny episode is missing family provenance and episode_id")
 
 
 def deterministic_bunny_split(family_id: str) -> str:
