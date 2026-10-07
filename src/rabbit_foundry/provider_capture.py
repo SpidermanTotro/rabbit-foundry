@@ -28,7 +28,10 @@ def redact_text(text: str) -> str:
             hide_next = False
             continue
         lower = word.lower()
-        if lower in {"bearer", "authorization:", "token:", "api_key:", "api-key:"}:
+        if lower == "authorization:":
+            redacted.append(word)
+            continue
+        if lower in {"bearer", "token:", "api_key:", "api-key:"}:
             redacted.append(word)
             hide_next = True
             continue
