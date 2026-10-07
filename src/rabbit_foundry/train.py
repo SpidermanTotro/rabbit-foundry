@@ -179,6 +179,10 @@ def main():
         "--sampling", choices=("fixed", "adaptive"), default="fixed",
         help="training episode sampling policy; validation is always frozen/uniform",
     )
+    p.add_argument(
+        "--minimum-relative-improvement", type=float, default=0.0,
+        help="require this fractional held-out loss improvement before Greenlight promotion",
+    )
     args = p.parse_args()
 
     cfg = ModelConfig(context=max(128, args.seq))
@@ -218,7 +222,10 @@ def main():
         }
         scores.append(CandidateScore(name, val, 1.0, finite=finite))
 
-    decision = decide(scores[0], scores[1])
+    decision = decide(
+        scores[0], scores[1],
+        minimum_relative_improvement=args.minimum_relative_improvement,
+    )
     if decision.promoted:
         torch.save(
             {"config": asdict(cfg), "state_dict": models[decision.winner].state_dict()},
@@ -239,6 +246,7 @@ def main():
         "episodes_manifest": args.episodes,
         "sampling": args.sampling,
         "validation_sampling": "frozen_uniform",
+        "minimum_relative_improvement": args.minimum_relative_improvement,
     }
     (run / "metrics.json").write_text(json.dumps(ledger, indent=2) + "\n")
     print(json.dumps(ledger, indent=2))
