@@ -63,6 +63,24 @@ Malformed captures are quarantined. Duplicate capture IDs are rejected. Behavior
 
 By default the pipeline requires the complete six-case Alpha holdout before calling the preparation complete.
 
+### Capture Kilo / OpenRouter previews
+
+Rabbit can import **exported** Kilo, OpenRouter, or other OpenAI-compatible request/response traces as behavioral preview data. Provider/model provenance is retained; API credentials are not training data.
+
+```bash
+python scripts/import_provider_preview.py \
+  /path/to/kilo-or-openrouter-exports/*.jsonl \
+  --out runs/provider-preview/captures.jsonl
+
+python scripts/prepare_alpha_bunny_training.py \
+  runs/provider-preview/captures.jsonl \
+  /path/to/preserved-alpha-holdout.jsonl \
+  --out-dir runs/provider-bunny \
+  --window 128
+```
+
+This trains on **observable outputs you intentionally captured/exported**. It does not extract provider weights and does not imply ownership of Kilo/OpenRouter model weights.
+
 ### Train the captured course
 
 ```bash
@@ -74,6 +92,20 @@ python -m rabbit_foundry.train \
   --run-dir runs/alpha-bunny/train \
   --device auto
 ```
+
+To continue from a compatible Rabbit checkpoint that you own/control:
+
+```bash
+python -m rabbit_foundry.train \
+  --episodes runs/alpha-bunny/training_episodes.json \
+  --episode-kind bunny \
+  --sampling adaptive \
+  --init-checkpoint /path/to/our/winner.pt \
+  --run-dir runs/alpha-bunny/continued \
+  --device auto
+```
+
+The checkpoint SHA-256 and initialization mode are recorded in the run ledger. Provider preview outputs and owned model weights remain separate provenance concepts.
 
 Alpha/Space Bunny lineage training is explicitly labeled `alpha-space-bunny`; it is **not** reported as Rabbit-native teacher-free training.
 
@@ -139,6 +171,9 @@ pytest -q
 ## Current capability
 
 - [x] Raw Alpha/Bunny JSON + JSONL capture ingestion
+- [x] Exported Kilo/OpenRouter/OpenAI-compatible preview-trace ingestion
+- [x] Provider/model provenance with secret redaction
+- [x] Compatible owned Rabbit checkpoint continuation
 - [x] Capture normalization and quarantine
 - [x] Behavior-axis normalization
 - [x] Capture provenance + SHA-256 course manifests
