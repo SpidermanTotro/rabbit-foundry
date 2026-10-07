@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "source_family": "space-bunny",
+  "historical_preview": {
+    "name": "Space Bunny Alpha",
+    "known_aliases": [
+      "stealth/space-bunny-alpha"
+    ],
+    "status": "historical"
+  },
+  "continuation_candidates": [
+    {
+      "provider": "opencode-zen",
+      "model": "space-bunny-free",
+      "protocol": "openai-compatible-chat-completions",
+      "status": "currently-listed",
+      "identity_claim": "unverified-continuation-candidate",
+      "verification": {
+        "method": "frozen-alpha-behavior-fingerprint",
+        "required_cases": [
+          "011-partial-failure",
+          "014-instruction-conflict",
+          "016-guess-discipline",
+          "028-ambiguous-request",
+          "031-test-first-request",
+          "034-anti-sycophancy"
+        ]
+      }
+    }
+  ]
+}
