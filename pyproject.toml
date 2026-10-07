@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rabbit-foundry"
+name = "rabbit-code"
 version = "0.1.0"
-description = "Local-first twin-model experimental model foundry"
+description = "Local-first coding agent and owned-model research platform"
 requires-python = ">=3.11"
 dependencies = ["torch>=2.4"]
 
