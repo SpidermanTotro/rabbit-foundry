@@ -17,7 +17,7 @@ def main() -> None:
     parser.add_argument("--out", default="configs/generated-model.json")
     args = parser.parse_args()
 
-    print("Rabbit Foundry - Make a Model")
+    print("Rabbit Code - Make a Model")
     name = ask("Model name", "rabbit-native")
     print("\nWhat do you want to preserve?")
     selected = []
