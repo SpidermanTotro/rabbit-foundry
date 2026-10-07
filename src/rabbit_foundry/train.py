@@ -113,6 +113,7 @@ def evaluate(model, data, batch, seq, device, batches=8):
 def train_one(
     seed, cfg, train_data, valid_data, steps, batch, seq, device,
     episode_mode=False, sampling="fixed", initial_state_dict=None,
+    resume_state=None, checkpoint_state=None,
 ):
     random.seed(seed)
     torch.manual_seed(seed)
@@ -124,11 +125,29 @@ def train_one(
     opt = torch.optim.AdamW(model.parameters(), lr=3e-4)
     history = []
     finite = True
+    completed_steps = 0
     curriculum = None
     if episode_mode and sampling == "adaptive":
         curriculum = Curriculum(skills=episode_skills(train_data))
 
-    for step in range(1, steps + 1):
+    if resume_state is not None:
+        if not isinstance(resume_state, dict):
+            raise ValueError("resume state must be a dictionary")
+        if "optimizer_state_dict" not in resume_state:
+            raise ValueError("resume checkpoint is missing optimizer state")
+        opt.load_state_dict(resume_state["optimizer_state_dict"])
+        completed_steps = int(resume_state.get("completed_steps", 0))
+        if completed_steps < 0:
+            raise ValueError("completed_steps must be non-negative")
+        if "python_rng_state" in resume_state:
+            random.setstate(resume_state["python_rng_state"])
+        if "torch_rng_state" in resume_state:
+            torch.random.set_rng_state(resume_state["torch_rng_state"])
+        if device.type == "cuda" and resume_state.get("cuda_rng_state_all") is not None:
+            torch.cuda.set_rng_state_all(resume_state["cuda_rng_state_all"])
+
+    for local_step in range(1, steps + 1):
+        step = completed_steps + local_step
         skill = None
         sampled_rows = train_data
         if curriculum is not None:
@@ -162,6 +181,16 @@ def train_one(
     else:
         val = evaluate(model, valid_data, batch, seq, device) if finite else float("inf")
     curriculum_state = curriculum.state() if curriculum is not None else None
+    if checkpoint_state is not None:
+        checkpoint_state.clear()
+        checkpoint_state.update({
+            "optimizer_state_dict": opt.state_dict(),
+            "completed_steps": completed_steps + len(range(1, steps + 1)) if finite else (history[-1]["step"] if history else completed_steps),
+            "python_rng_state": random.getstate(),
+            "torch_rng_state": torch.random.get_rng_state(),
+            "cuda_rng_state_all": torch.cuda.get_rng_state_all() if device.type == "cuda" else None,
+            "curriculum_state": curriculum_state,
+        })
     return model, val, history, finite, curriculum_state
 
 
@@ -195,7 +224,11 @@ def main():
     )
     p.add_argument(
         "--init-checkpoint",
-        help="continue training from an owned/controlled compatible Rabbit winner.pt checkpoint",
+        help="initialize model weights from a compatible owned Rabbit checkpoint; optimizer starts fresh",
+    )
+    p.add_argument(
+        "--resume-checkpoint",
+        help="exactly resume model, optimizer and RNG state from a Rabbit winner.pt checkpoint",
     )
     args = p.parse_args()
 
@@ -213,19 +246,27 @@ def main():
     if args.minimum_behavior_score > 0 and set(behavior_scores) != {"A", "B"}:
         raise ValueError("behavioral Greenlight requires measured scores for both A and B")
 
+    if args.init_checkpoint and args.resume_checkpoint:
+        raise ValueError("--init-checkpoint and --resume-checkpoint are mutually exclusive")
     initial_state_dict = None
+    resume_state = None
     init_checkpoint_sha256 = None
-    if args.init_checkpoint:
-        checkpoint_path = Path(args.init_checkpoint)
+    checkpoint_arg = args.resume_checkpoint or args.init_checkpoint
+    if checkpoint_arg:
+        checkpoint_path = Path(checkpoint_arg)
         import hashlib
         init_checkpoint_sha256 = hashlib.sha256(checkpoint_path.read_bytes()).hexdigest()
-        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         if not isinstance(checkpoint, dict) or not isinstance(checkpoint.get("config"), dict) or not isinstance(checkpoint.get("state_dict"), dict):
             raise ValueError("init checkpoint must contain config and state_dict")
         cfg = ModelConfig(**checkpoint["config"])
         if args.seq > cfg.context:
             raise ValueError("requested sequence exceeds init checkpoint context")
         initial_state_dict = checkpoint["state_dict"]
+        if args.resume_checkpoint:
+            resume_state = checkpoint.get("training_state")
+            if not isinstance(resume_state, dict):
+                raise ValueError("resume checkpoint has no training_state; use --init-checkpoint for weight-only continuation")
     else:
         cfg = ModelConfig(context=max(128, args.seq))
     device = device_from(args.device)
@@ -250,14 +291,18 @@ def main():
     run = Path(args.run_dir)
     run.mkdir(parents=True, exist_ok=True)
 
-    results, models = {}, {}
+    results, models, training_states = {}, {}, {}
     scores = []
     for name, seed in (("A", 1337), ("B", 7331)):
+        candidate_checkpoint_state = {}
         model, val, history, finite, curriculum_state = train_one(
             seed, cfg, train_data, valid_data, args.steps, args.batch, args.seq, device,
             episode_mode=episode_mode, sampling=args.sampling,
             initial_state_dict=initial_state_dict,
+            resume_state=resume_state,
+            checkpoint_state=candidate_checkpoint_state,
         )
+        training_states[name] = candidate_checkpoint_state
         models[name] = model
         results[name] = {
             "seed": seed, "validation_loss": val, "history": history, "finite": finite,
@@ -274,7 +319,12 @@ def main():
     )
     if decision.promoted:
         torch.save(
-            {"config": asdict(cfg), "state_dict": models[decision.winner].state_dict()},
+            {
+                "checkpoint_version": 2,
+                "config": asdict(cfg),
+                "state_dict": models[decision.winner].state_dict(),
+                "training_state": training_states[decision.winner],
+            },
             run / "winner.pt",
         )
 
@@ -296,8 +346,9 @@ def main():
         "minimum_behavior_score": args.minimum_behavior_score,
         "behavior_scores_file": args.behavior_scores,
         "behavior_evidence": "measured" if behavior_scores else "not_provided",
-        "initialization": "owned_checkpoint" if args.init_checkpoint else "random",
+        "initialization": "exact_resume" if args.resume_checkpoint else ("owned_checkpoint" if args.init_checkpoint else "random"),
         "init_checkpoint": args.init_checkpoint,
+        "resume_checkpoint": args.resume_checkpoint,
         "init_checkpoint_sha256": init_checkpoint_sha256,
     }
     (run / "metrics.json").write_text(json.dumps(ledger, indent=2) + "\n")
