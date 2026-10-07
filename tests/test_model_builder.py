@@ -10,6 +10,7 @@ def test_preservation_recipe_builds_selected_courses():
         source_model="space-bunny-free",
     )
     plan = plan_model(recipe)
+    assert plan.gguf_ready is True
     assert "behavior_course" in plan.stages
     assert "repair_course" in plan.stages
     assert "trajectory_course" in plan.stages
@@ -27,6 +28,14 @@ def test_tiny_rabbit_never_claims_fake_gguf_readiness():
 def test_compatible_architecture_can_plan_gguf():
     recipe = ModelRecipe(name="rabbit", preserve=["coding"], export=["checkpoint", "gguf"])
     plan = plan_model(recipe, architecture="llama-compatible")
+    assert plan.gguf_ready is True
+    assert plan.gguf_blocker is None
+    assert plan.stages[-1] == "gguf_export"
+
+
+def test_auto_mode_turns_gguf_request_into_pass():
+    recipe = ModelRecipe(name="portable-rabbit", preserve=["coding", "debugging"], export=["checkpoint", "gguf"])
+    plan = plan_model(recipe)
     assert plan.gguf_ready is True
     assert plan.gguf_blocker is None
     assert plan.stages[-1] == "gguf_export"
