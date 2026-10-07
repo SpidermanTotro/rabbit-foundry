@@ -12,7 +12,7 @@ echo
 
 echo "== completion =="
 curl -fsS "$BASE/v1/chat/completions"   -H 'Content-Type: application/json'   -d '{
-    "model":"rabbit-absorber",
+    "model":"rabbit-code",
     "stream":false,
     "messages":[
       {"role":"system","content":"Reply briefly. Do not request tools."},
