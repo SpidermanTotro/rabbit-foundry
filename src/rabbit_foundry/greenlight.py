@@ -10,7 +10,7 @@ class CandidateScore:
     validation_loss: float
     heldout_pass_rate: float
     finite: bool = True
-    behavior_score: float = 1.0
+    behavior_score: float | None = None
 
 
 @dataclass(frozen=True)
@@ -32,14 +32,23 @@ def decide(
         if x.finite
         and math.isfinite(x.validation_loss)
         and math.isfinite(x.heldout_pass_rate)
-        and math.isfinite(x.behavior_score)
+        and (x.behavior_score is None or math.isfinite(x.behavior_score))
         and x.heldout_pass_rate >= minimum_pass_rate
-        and x.behavior_score >= minimum_behavior_score
+        and (
+            minimum_behavior_score <= 0
+            or (x.behavior_score is not None and x.behavior_score >= minimum_behavior_score)
+        )
     ]
     if not valid:
         return PromotionDecision(False, None, "no candidate passed Greenlight")
 
-    ranked = sorted(valid, key=lambda x: (-x.behavior_score, x.validation_loss))
+    ranked = sorted(
+        valid,
+        key=lambda x: (
+            -(x.behavior_score if x.behavior_score is not None else -1.0),
+            x.validation_loss,
+        ),
+    )
     winner = ranked[0]
     if minimum_relative_improvement > 0 and len(ranked) > 1:
         runner_up = ranked[1]
