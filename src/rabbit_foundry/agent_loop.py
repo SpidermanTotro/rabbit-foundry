@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 
 from .agent_runtime import RabbitCodeRuntime
-from .model_router import assistant_text
+from .model_router import assistant_message, assistant_text, assistant_tool_calls
 
 
 TOOL_PROTOCOL_PROMPT = """You are Rabbit Code operating a controlled workspace.
@@ -35,6 +35,120 @@ until you have actually attempted an appropriate Rabbit Code tool.
 Never invent tool results. There is no raw shell tool. Sandbox execution has
 network disabled and a read-only workspace.
 """
+
+
+NATIVE_TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "read",
+            "description": "Read a UTF-8 text file inside the workspace.",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list",
+            "description": "List files inside the workspace using a glob pattern.",
+            "parameters": {
+                "type": "object",
+                "properties": {"pattern": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "grep",
+            "description": "Search workspace text files for an exact substring.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "needle": {"type": "string"},
+                    "pattern": {"type": "string"},
+                },
+                "required": ["needle"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write",
+            "description": "Write a text file. Permission gated.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit",
+            "description": "Replace exactly one matching text fragment. Permission gated.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "old": {"type": "string"},
+                    "new": {"type": "string"},
+                },
+                "required": ["path", "old", "new"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_status",
+            "description": "Read git status --short for the workspace.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_diff",
+            "description": "Read the unstaged git diff, optionally for one path.",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "sandbox",
+            "description": (
+                "Run an argv command inside the locked-down Podman sandbox. "
+                "Network is disabled and the workspace is read-only."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "image": {"type": "string"},
+                    "command": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                    },
+                },
+                "required": ["image", "command"],
+            },
+        },
+    },
+]
 
 
 def _object_args(value: dict, *reserved: str) -> dict:
@@ -192,16 +306,78 @@ class AgentLoop:
         fallback_context_used = False
 
         for step in range(1, self.max_steps + 1):
+            provider = self.runtime.router.provider(self.runtime.provider_id)
             response = self.runtime.router.complete(
                 self.runtime.provider_id,
                 messages,
                 max_tokens=self.max_tokens,
+                tools=NATIVE_TOOL_SCHEMAS if provider.supports_tools else None,
             )
+
+            native_calls = (
+                assistant_tool_calls(response)
+                if provider.supports_tools
+                else []
+            )
+            if native_calls:
+                assistant = assistant_message(response)
+                self.runtime.session.record("assistant", {
+                    "content": assistant.get("content") or "",
+                    "tool_calls": native_calls,
+                    "mode": "agent",
+                    "protocol": "openai-tool-calls",
+                    "step": step,
+                })
+                messages.append(assistant)
+                for index, call in enumerate(native_calls):
+                    tool_attempts += 1
+                    call_id = call.get("id") or f"rabbit-call-{step}-{index}"
+                    function = call.get("function")
+                    if not isinstance(function, dict):
+                        tool_result = {
+                            "ok": False,
+                            "error_type": "ValueError",
+                            "error": "native tool call is missing function object",
+                        }
+                    else:
+                        tool = function.get("name")
+                        arguments = function.get("arguments", {})
+                        try:
+                            if isinstance(arguments, str):
+                                arguments = json.loads(arguments or "{}")
+                            if not isinstance(tool, str) or not tool:
+                                raise ValueError("native tool call has no function name")
+                            if not isinstance(arguments, dict):
+                                raise ValueError("native tool arguments must be an object")
+                            result = self._dispatch(tool, arguments)
+                            tool_result = {
+                                "ok": True,
+                                "tool": tool,
+                                "result": result,
+                            }
+                        except Exception as exc:
+                            tool_result = {
+                                "ok": False,
+                                "tool": tool if isinstance(tool, str) else None,
+                                "error_type": type(exc).__name__,
+                                "error": str(exc),
+                            }
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": str(call_id),
+                        "content": json.dumps(tool_result, ensure_ascii=False),
+                    })
+                continue
+
             raw = assistant_text(response)
             self.runtime.session.record("assistant", {
                 "content": raw,
                 "mode": "agent",
-                "protocol": "rabbit-json-tool-v1",
+                "protocol": (
+                    "openai-tools-fallback-json"
+                    if provider.supports_tools
+                    else "rabbit-json-tool-v1"
+                ),
                 "step": step,
             })
 
