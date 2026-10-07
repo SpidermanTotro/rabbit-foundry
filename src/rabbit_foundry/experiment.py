@@ -69,12 +69,14 @@ def run_experiment(
     episodes, out, *, steps=100, batch=8, seq=64, seeds=(1337, 7331, 2026),
     device_name="auto", minimum_relative_improvement=0.0,
 ):
-    train_rows, valid_rows = manifest_episodes(episodes)
-    skills = sorted({row.get("skill", "code_prediction") for row in train_rows})
+    raw = json.loads(Path(episodes).read_text())
+    all_rows = raw.get("episodes", []) if isinstance(raw, dict) else []
+    skills = sorted({row.get("skill", "code_prediction") for row in all_rows if isinstance(row, dict)})
     required = {"code_prediction", "code_repair", "hidden_diff"}
     missing = sorted(required - set(skills))
     if missing:
         raise ValueError(f"three-skill experiment is missing training skills: {', '.join(missing)}")
+    train_rows, valid_rows = manifest_episodes(episodes)
 
     device = device_from(device_name)
     cfg = ModelConfig(context=max(128, seq))
