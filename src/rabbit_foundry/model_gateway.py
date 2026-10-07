@@ -8,6 +8,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODEL_ID = "rabbit-code"
+GATEWAY_PROTOCOL = 2
 UPSTREAM = "http://127.0.0.1:11434/v1"
 UPSTREAM_MODEL = "qwen2.5-coder:7b"
 
@@ -43,7 +44,7 @@ def stream_proxy(url: str, payload: dict):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "RabbitCodeGateway/0.1"
+    server_version = "RabbitCodeGateway/0.2"
 
     def _json(self, status: int, body: dict) -> None:
         raw = json.dumps(body).encode()
@@ -65,6 +66,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {
                 "status": "ok",
                 "mode": "rabbit-code-model-gateway",
+                "protocol_version": GATEWAY_PROTOCOL,
                 "model": MODEL_ID,
                 "upstream": UPSTREAM,
                 "streaming": True,
