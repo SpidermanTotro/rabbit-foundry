@@ -75,8 +75,39 @@ def import_bunny_jsonl(path: str | Path, window: int = 128) -> dict:
     }
 
 
+def _ensure_small_dataset_splits(episodes: list[dict]) -> None:
+    """Guarantee train+validation without splitting chunks from one capture family."""
+    families: dict[str, list[dict]] = {}
+    for row in episodes:
+        families.setdefault(bunny_family_id(row), []).append(row)
+    if len(families) < 2:
+        return
+
+    assignments = {family: deterministic_bunny_split(family) for family in families}
+    present = set(assignments.values())
+
+    if "train" not in present:
+        family = sorted(families)[0]
+        assignments[family] = "train"
+
+    present = set(assignments.values())
+    if "validation" not in present:
+        candidates = [family for family, split in assignments.items() if split == "train"]
+        if len(candidates) > 1:
+            assignments[sorted(candidates)[-1]] = "validation"
+        else:
+            candidates = [family for family, split in assignments.items() if split != "train"]
+            if candidates:
+                assignments[sorted(candidates)[0]] = "validation"
+
+    for family, rows in families.items():
+        for row in rows:
+            row["split"] = assignments[family]
+
+
 def write_bunny_manifest(source: str | Path, out: str | Path, window: int = 128) -> dict:
     payload = import_bunny_jsonl(source, window=window)
+    _ensure_small_dataset_splits(payload["episodes"])
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2) + "\n")
@@ -111,5 +142,5 @@ def load_bunny_episode_manifest(path: str | Path, split: str) -> list[dict]:
         raise ValueError("split must be train, validation, or test")
     return [
         row for row in payload["episodes"]
-        if deterministic_bunny_split(bunny_family_id(row)) == split
+        if row.get("split", deterministic_bunny_split(bunny_family_id(row))) == split
     ]
