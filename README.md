@@ -104,7 +104,7 @@ Then, from a project you want Rabbit Code to inspect:
 rabbit-code --workspace /path/to/project
 ```
 
-Useful commands inside Rabbit Code:
+Useful commands inside the interactive `rabbit>` prompt:
 
 ```text
 /capabilities
@@ -115,6 +115,21 @@ Useful commands inside Rabbit Code:
 /git-diff
 /agent inspect this project and explain the most important bug
 ```
+
+The same commands can be run directly from Bash without entering the interactive
+prompt:
+
+```bash
+rabbit-code --workspace . capabilities
+rabbit-code --workspace . git-status
+rabbit-code --workspace . list "*.py"
+rabbit-code --workspace . read README.md
+rabbit-code --workspace . agent "inspect this repository and tell me what needs fixing"
+```
+
+Typing `Ctrl-C` at `rabbit>` exits Rabbit Code and returns to Bash. A bare
+`/read` or `/agent` typed after that is a shell path, not a Rabbit Code
+command.
 
 Writes remain approval-gated unless Rabbit Code is launched with
 `--allow-write`.
