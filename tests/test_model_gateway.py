@@ -1,6 +1,8 @@
+import io
 import json
 import threading
 import urllib.request
+import urllib.error
 from http.server import ThreadingHTTPServer
 
 import rabbit_foundry.model_gateway as model_gateway
@@ -96,6 +98,43 @@ def test_gateway_passes_native_tools_to_upstream(monkeypatch):
         assert seen["payload"]["tools"] == tools
         assert body["model"] == "rabbit-code"
         assert body["choices"][0]["message"]["tool_calls"][0]["function"]["name"] == "read"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_gateway_returns_upstream_stream_http_error_before_sse(monkeypatch):
+    def reject_stream(url, payload):
+        raise urllib.error.HTTPError(
+            url, 503, "Service Unavailable", {},
+            io.BytesIO(b'{"error":{"message":"model unavailable"}}'),
+        )
+
+    monkeypatch.setattr(model_gateway, "stream_proxy", reject_stream)
+    server, thread = serve()
+    try:
+        host, port = server.server_address
+        payload = json.dumps({
+            "model": "rabbit-code",
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": True,
+        }).encode()
+        request = urllib.request.Request(
+            f"http://{host}:{port}/v1/chat/completions",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(request, timeout=5)
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 503
+            assert exc.headers.get("Content-Type") == "application/json"
+            body = json.loads(exc.read())
+            assert body["error"]["message"] == "model unavailable"
+        else:
+            raise AssertionError("gateway must report upstream 503")
     finally:
         server.shutdown()
         server.server_close()
