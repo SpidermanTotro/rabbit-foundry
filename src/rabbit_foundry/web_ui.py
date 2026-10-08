@@ -73,6 +73,8 @@ class RabbitWebServer(ThreadingHTTPServer):
             raise ValueError("UI requires approval-gated sandbox execution")
         if runtime.router.allow_network:
             raise ValueError("UI network routing must be disabled")
+        if not runtime.router.provider(runtime.provider_id).local:
+            raise ValueError("UI requires a loopback model endpoint")
         self.runtime = runtime
         self.csrf_token = secrets.token_urlsafe(32)
         self.runtime_lock = threading.RLock()
