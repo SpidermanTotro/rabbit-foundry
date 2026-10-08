@@ -21,12 +21,14 @@ is_rabbit = (
     and payload.get("model") == "rabbit-code"
 )
 protocol = payload.get("protocol_version", 0)
-if is_rabbit and isinstance(protocol, int) and protocol >= 2:
-    raise SystemExit(0)
-if is_rabbit:
+if is_rabbit and (not isinstance(protocol, int) or protocol < 2):
     raise SystemExit(4)
+if is_rabbit and payload.get("upstream_model") != sys.argv[1]:
+    raise SystemExit(5)
+if is_rabbit:
+    raise SystemExit(0)
 raise SystemExit(1)
-'; then
+' "$MODEL"; then
     echo "Rabbit Code gateway is already running on localhost:$PORT"
     echo "$health"
     exit 0
@@ -37,6 +39,13 @@ raise SystemExit(1)
       echo "$health"
       echo "Restart the existing gateway process, then run this script again."
       exit 4
+    fi
+    if [[ "$status" -eq 5 ]]; then
+      echo "Rabbit Code gateway is already running, but with a different upstream model."
+      echo "Requested model: $MODEL"
+      echo "$health"
+      echo "Restart the existing gateway process to change its upstream model."
+      exit 5
     fi
   fi
 
