@@ -29,6 +29,9 @@ aside{background:#111a28}.left{border-right:1px solid #27354b}.right{border-left
 .chat{background:radial-gradient(circle at 70% -30%,#192d42,#0b111b 55%)}
 .top{min-height:75px;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 24px;border-bottom:1px solid #27354b}
 .top h1{font-size:17px;line-height:1.1;margin:0 0 6px}.pill{border:1px solid #35604f;background:#193027;border-radius:30px;color:#a4e8c7;padding:7px 12px;font-size:11px}.pill.offline{background:#302322;border-color:#734848;color:#ffd0b9}
+.topcontrols{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+#model-picker{max-width:230px;background:#162838;color:#defbea;border:1px solid #3a6659;border-radius:8px;padding:9px;font:inherit}
+#model-picker:disabled{opacity:.5}
 .messages{min-height:0;overflow:auto;flex:1;padding:24px 5%;display:flex;flex-direction:column;gap:15px}
 .message{max-width:90%;width:fit-content;border-radius:14px;background:#1b293b;border:1px solid #2b415a;padding:13px 17px;overflow-wrap:anywhere;white-space:pre-wrap}
 .message.user{align-self:flex-end;background:#21433a;border-color:#32634f}
@@ -71,7 +74,7 @@ pre{font:12px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-
   <div class="leftfoot"><span class="dot"></span>Local only · No cloud required</div>
 </aside>
 <main class="chat">
-  <div class="top"><div><h1>Rabbit Code Assistant</h1><span class="muted small" id="session-label">Workspace chat</span></div><span class="pill" id="model">Connecting...</span></div>
+  <div class="top"><div><h1>Rabbit Code Assistant</h1><span class="muted small" id="session-label">Workspace chat</span></div><div class="topcontrols"><label class="muted small" for="model-picker">LOCAL MODEL</label><select id="model-picker" aria-label="Local AI model" title="Switch local AI model"><option>Checking installed models...</option></select><span class="pill" id="model">Connecting...</span></div></div>
   <div id="messages" class="messages" aria-live="polite"><div class="empty">🐇 Rabbit is getting ready.</div></div>
   <div class="composer-wrap">
     <div class="composer">
@@ -153,14 +156,31 @@ async function loadState(){
   currentSession=state.session;
   renderMessages(state.messages);
 }
+async function loadModels(){
+  const models=await request("/api/models");
+  $("model-picker").replaceChildren();
+  for(const entry of models.options){
+    const option=elem("option","",entry.name);
+    option.value=entry.id;
+    $("model-picker").append(option);
+  }
+  if(models.options.some(x=>x.id===models.selected)){
+    $("model-picker").value=models.selected;
+  }else{
+    const offline=elem("option","","Previously selected model (unavailable)");
+    offline.value=models.selected;
+    $("model-picker").append(offline);
+    $("model-picker").value=models.selected;
+  }
+}
 async function loadHealth(){
   const health=await request("/api/health");
   $("model").classList.toggle("offline",!health.reachable);
   if(health.reachable){
     const model=health.upstream_model ? " ("+health.upstream_model+")" : "";
-    notice("Local gateway connected"+model);
+    notice("Local model endpoint connected"+model);
   }else{
-    notice("Gateway offline. Start it with: bash scripts/rabbit_code_boot.sh",true);
+    notice("Local model endpoint is unavailable. Check Ollama or Rabbit gateway.",true);
   }
 }
 async function loadSessions(){
@@ -240,6 +260,23 @@ async function send(){
   }finally{busy=false;$("send").disabled=false;}
 }
 $("send").addEventListener("click",send);
+$("model-picker").addEventListener("change",async()=>{
+  if(busy)return;
+  busy=true;
+  $("model-picker").disabled=true;
+  $("send").disabled=true;
+  try{
+    const result=await request("/api/model",{selection:$("model-picker").value});
+    await loadState();
+    await loadHealth();
+    notice("Using local model: "+result.model);
+  }catch(e){
+    notice("Model switch rejected: "+e.message,true);
+  }finally{
+    busy=false;$("send").disabled=false;$("model-picker").disabled=false;
+    try{await loadModels();}catch(e){notice(e.message,true);}
+  }
+});
 $("prompt").addEventListener("keydown",e=>{
   if(e.key==="Enter"&&e.ctrlKey){e.preventDefault();send();}
 });
@@ -248,7 +285,7 @@ $("agent-mode").addEventListener("click",()=>setMode("agent"));
 $("files-tab").addEventListener("click",()=>switchTab("files"));
 $("git-tab").addEventListener("click",()=>switchTab("git"));
 $("refresh").addEventListener("click",async()=>{
-  try{await Promise.all([loadFiles(),loadSessions()]);await loadState();await loadHealth();}
+  try{await Promise.all([loadFiles(),loadSessions(),loadModels()]);await loadState();await loadHealth();}
   catch(e){notice(e.message,true);}
 });
 $("save").addEventListener("click",async()=>{
@@ -266,7 +303,7 @@ $("new-session").addEventListener("click",async()=>{
   catch(e){notice(e.message,true);}
 });
 (async function boot(){
-  try{await loadState();await loadSessions();await loadFiles();await loadHealth();}
+  try{await loadState();await loadSessions();await loadFiles();await loadModels();await loadHealth();}
   catch(e){notice(e.message,true);}
 })();
 </script>
