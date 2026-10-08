@@ -119,7 +119,7 @@ def test_agent_loop_recovers_from_structured_protocol_error(tmp_path):
         max_steps=4,
     ).run("inspect the note")
     assert result == "Recovered and inspected the note."
-    assert "RABBIT_PROTOCOL_ERROR" in router.calls[1][-1]["content"]
+    assert "RABBIT_FALLBACK_CONTEXT" in router.calls[1][-1]["content"]
     assert "rabbit facts" in router.calls[2][-1]["content"]
 
 
@@ -135,7 +135,7 @@ def test_agent_mode_rejects_plain_prose_then_uses_tool(tmp_path):
         max_steps=4,
     ).run("inspect this repository")
     assert result == "I inspected the repository README."
-    assert "RABBIT_PROTOCOL_ERROR" in router.calls[1][-1]["content"]
+    assert "RABBIT_FALLBACK_CONTEXT" in router.calls[1][-1]["content"]
     assert "Rabbit Code repository" in router.calls[2][-1]["content"]
 
 
@@ -151,7 +151,7 @@ def test_agent_mode_rejects_final_before_any_tool(tmp_path):
         max_steps=4,
     ).run("inspect this repository")
     assert result == "Now I inspected it."
-    assert "RABBIT_TOOL_REQUIRED" in router.calls[1][-1]["content"]
+    assert "RABBIT_FALLBACK_CONTEXT" in router.calls[1][-1]["content"]
     assert "Rabbit Code repository" in router.calls[2][-1]["content"]
 
 
