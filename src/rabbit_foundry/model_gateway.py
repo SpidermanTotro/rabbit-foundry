@@ -115,38 +115,53 @@ class Handler(BaseHTTPRequestHandler):
         self._json(status, response)
 
     def _handle_streaming(self, forwarded: dict) -> None:
-        self._sse_headers()
         try:
             upstream_resp = stream_proxy(f"{UPSTREAM}/chat/completions", forwarded)
-            for raw_line in upstream_resp:
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if not line:
-                    continue
-                if not line.startswith("data: "):
-                    continue
+        except urllib.error.HTTPError as exc:
+            data = exc.read()
+            try:
+                error_body = json.loads(data)
+            except (ValueError, UnicodeDecodeError):
+                error_body = {"error": {"message": "upstream rejected streaming request"}}
+            self._json(exc.code, error_body)
+            return
+        except urllib.error.URLError:
+            self._json(502, {"error": {"message": "upstream streaming endpoint unavailable"}})
+            return
 
-                data_content = line[6:].strip()
-                if data_content == "[DONE]":
-                    self.wfile.write(b"data: [DONE]\n\n")
-                    self.wfile.flush()
-                    return
+        self._sse_headers()
+        try:
+            with upstream_resp:
+                for raw_line in upstream_resp:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
 
-                try:
-                    parsed = json.loads(data_content)
-                except json.JSONDecodeError:
-                    continue
+                    data_content = line[5:].strip()
+                    if data_content == "[DONE]":
+                        self.wfile.write(b"data: [DONE]\n\n")
+                        self.wfile.flush()
+                        return
 
-                if "model" in parsed:
-                    parsed["model"] = MODEL_ID
-                self.wfile.write(f"data: {json.dumps(parsed)}\n\n".encode())
+                    try:
+                        parsed = json.loads(data_content)
+                    except json.JSONDecodeError:
+                        continue
+
+                    if isinstance(parsed, dict):
+                        parsed["model"] = MODEL_ID
+                        self.wfile.write(f"data: {json.dumps(parsed)}\n\n".encode())
+                        self.wfile.flush()
+        except (OSError, ValueError):
+            try:
+                error = {
+                    "error": {"message": "gateway streaming interrupted"},
+                    "model": MODEL_ID,
+                }
+                self.wfile.write(f"data: {json.dumps(error)}\n\n".encode())
                 self.wfile.flush()
-        except Exception as exc:
-            error = {
-                "error": {"message": f"gateway streaming error: {exc}"},
-                "model": MODEL_ID,
-            }
-            self.wfile.write(f"data: {json.dumps(error)}\n\n".encode())
-            self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
     def log_message(self, fmt, *args):
         print("[rabbit-code-gateway]", fmt % args)
