@@ -20,14 +20,21 @@ from rabbit_foundry.workspace import Workspace
 class FakeRouter:
     allow_network = False
 
-    def provider(self, provider_id):
-        assert provider_id == "fake"
-        return ProviderConfig(
+    def __init__(self):
+        self._config = ProviderConfig(
             provider_id="fake",
             base_url="http://127.0.0.1:8765/v1",
             model="test-local",
             supports_tools=False,
         )
+
+    def provider(self, provider_id):
+        assert provider_id == "fake"
+        return self._config
+
+    def register(self, config):
+        assert config.provider_id == "fake"
+        self._config = config
 
     def complete(self, provider_id, messages, *, max_tokens=1024, tools=None):
         return {"choices": [{
@@ -261,3 +268,69 @@ def test_linux_launch_script_bash_syntax():
     result = subprocess.run(["bash", "-n", str(script)],
                             capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
+
+
+def test_installed_model_switch_only_uses_verified_local_ollama(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "rabbit_foundry.ui_models.installed_ollama_models",
+        lambda: ["qwen2.5-coder:7b", "qwen3:8b"],
+    )
+    monkeypatch.setattr(
+        "rabbit_foundry.web_ui.installed_ollama_models",
+        lambda: ["qwen2.5-coder:7b", "qwen3:8b"],
+    )
+    with ui_server(tmp_path) as server:
+        status, choices, _ = req(server, "GET", "/api/models")
+        assert status == 200
+        assert choices["selected"] == "original"
+        assert {m["id"] for m in choices["options"]} == {
+            "original", "ollama:qwen2.5-coder:7b", "ollama:qwen3:8b",
+        }
+        status, output, _ = req(server, "POST", "/api/model",
+                                payload={"selection": "ollama:qwen2.5-coder:7b"},
+                                token=server.csrf_token)
+        assert status == 200
+        assert output["model"] == "qwen2.5-coder:7b"
+        status, state, _ = req(server, "GET", "/api/state")
+        assert status == 200
+        assert state["local"] is True
+        assert state["model"] == "qwen2.5-coder:7b"
+        assert server.runtime.router.provider("fake").base_url == "http://127.0.0.1:11434/v1"
+        status, health, _ = req(server, "GET", "/api/health")
+        assert status == 200
+        assert health["reachable"] is True
+        status, _, _ = req(server, "POST", "/api/model",
+                           payload={"selection": "original"}, token=server.csrf_token)
+        assert status == 200
+        assert server.runtime.router.provider("fake").model == "test-local"
+
+
+def test_model_switch_rejects_uninstalled_and_remote_targets(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "rabbit_foundry.ui_models.installed_ollama_models",
+        lambda: ["qwen3:8b"],
+    )
+    with ui_server(tmp_path) as server:
+        for selection in (
+            "ollama:secret-uninstalled", "ollama:http://evil.test/v1",
+            "https://evil.test/v1", "remote", 123,
+        ):
+            status, output, _ = req(
+                server, "POST", "/api/model",
+                payload={"selection": selection},
+                token=server.csrf_token,
+            )
+            assert status == 400, (selection, output)
+            assert server.runtime.router.provider("fake").model == "test-local"
+
+
+def test_model_switch_requires_csrf_token(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "rabbit_foundry.ui_models.installed_ollama_models",
+        lambda: ["qwen3:8b"],
+    )
+    with ui_server(tmp_path) as server:
+        status, _, _ = req(server, "POST", "/api/model",
+                           payload={"selection": "ollama:qwen3:8b"})
+        assert status == 403
+        assert server.runtime.router.provider("fake").model == "test-local"
