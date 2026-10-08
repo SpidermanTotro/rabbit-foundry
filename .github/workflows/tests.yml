@@ -30,19 +30,46 @@ jobs:
         run: pytest -q
 
   lightweight-ui:
-    name: No-Torch CLI/UI smoke test (Python 3.11)
+    name: No-Torch CLI/UI smoke test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - name: Install CLI without training dependencies
-        run: python -m pip install -e .
+        run: python -m pip install -e ".[dev]"
       - name: Smoke test without Torch
         run: |
           python -c "import rabbit_foundry.helper_cli, rabbit_foundry.rabbit_code, rabbit_foundry.web_ui; import sys; assert 'torch' not in sys.modules"
           rabbit --help
           rabbit-code --help
           rabbit doctor --json
+          python -m pytest -q tests/test_helper_cli.py tests/test_install_rabbit.py tests/test_lightweight_install.py tests/test_web_ui.py tests/test_linux_desktop.py
+
+  fedora-lightweight:
+    name: Fedora 44 CLI/UI smoke (no Torch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    container:
+      image: fedora:44
+    steps:
+      - name: Install Fedora test prerequisites
+        run: dnf install -y git python3 python3-pip python3-virtualenv bash
+      - uses: actions/checkout@v4
+      - name: Create isolated virtual environment
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install -e ".[dev]"
+      - name: Verify local-only CLI and GUI tests
+        run: |
+          . .venv/bin/activate
+          python -c "import rabbit_foundry.helper_cli, rabbit_foundry.rabbit_code, rabbit_foundry.web_ui; import sys; assert 'torch' not in sys.modules"
+          rabbit doctor --json
+          python -m pytest -q tests/test_helper_cli.py tests/test_install_rabbit.py tests/test_lightweight_install.py tests/test_web_ui.py tests/test_linux_desktop.py
