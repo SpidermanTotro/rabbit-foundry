@@ -102,6 +102,21 @@ The gateway health response includes a protocol version. A gateway process
 started from older code must be restarted before new transport features become
 active.
 
+### Native tool-call diagnostic
+
+To check whether the **currently running local model** emits native OpenAI-style
+tool calls (not merely whether the gateway forwards tool definitions), run:
+
+```bash
+python3 scripts/check_native_tools.py
+```
+
+The probe uses an inert `rabbit_probe` function definition. It never executes
+a tool, reads workspace files, sends data to training, or contacts a remote
+provider. Exit code `0` means the expected tool call was returned; `2` means
+the model did not return a matching call; `1` means the probe request failed.
+A nonpassing result does not disable Rabbit Code's JSON/context fallback.
+
 ### Quick start
 
 Start the local gateway:
