@@ -198,10 +198,11 @@ class RabbitWebHandler(BaseHTTPRequestHandler):
                     path = query.get("path", [""])[0]
                     if not path or len(path) > 1024:
                         raise ValueError("file path is required")
-                    content = runtime.read(path)
-                    data = content.encode("utf-8")
-                    if len(data) > MAX_FILE_BYTES:
-                        raise ValueError("file is too large for web editor")
+                    runtime.read(path)  # enforce workspace read policy and audit
+                    data = runtime.workspace.resolve(path).read_bytes()
+                    if len(data) > MAX_FILE_BYTES or b"\x00" in data:
+                        raise ValueError("file is too large or not a text file")
+                    content = data.decode("utf-8")  # do not silently replace bytes
                     return self._send(200, {
                         "path": path,
                         "content": content,
@@ -265,8 +266,12 @@ class RabbitWebHandler(BaseHTTPRequestHandler):
                         pass
                     else:
                         raise PermissionError("session logs cannot be edited from UI")
-                    current = runtime.read(path)
-                    if hashlib.sha256(current.encode("utf-8")).hexdigest() != expected:
+                    runtime.read(path)  # enforce read policy and audit
+                    current_bytes = resolved.read_bytes()
+                    if len(current_bytes) > MAX_FILE_BYTES or b"\x00" in current_bytes:
+                        raise ValueError("file is too large or not a text file")
+                    current_bytes.decode("utf-8")
+                    if hashlib.sha256(current_bytes).hexdigest() != expected:
                         return self._send(409, {"error": "file changed on disk; reopen before saving"})
                     runtime.write(path, content, approved=True)
                     return self._send(200, {"saved": path,
