@@ -79,13 +79,13 @@ source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
-**Terminal 1 — start the existing model gateway** (requires local Ollama):
+**Optional — start the original Rabbit model gateway** (requires local Ollama):
 
 ```bash
 bash scripts/rabbit_code_boot.sh
 ```
 
-**Terminal 2 — launch the interface**:
+**Launch the interface**:
 
 ```bash
 rabbit-code --workspace "$HOME/your-project" --ui --open-browser
@@ -99,8 +99,12 @@ bash scripts/rabbit_code_linux_ui.sh "$HOME/your-project"
 ```
 
 The browser opens at `http://127.0.0.1:8766/`. Without `--open-browser`,
-open that address yourself. Pick a free port with `--ui-port 8877`. To
-use the terminal engine as before, just run `rabbit-code --workspace .`.
+open that address yourself. Pick a free port with `--ui-port 8877`.
+Use the **Local model** selector to switch to any model already installed
+in your loopback Ollama service, or switch back to the original Rabbit gateway.
+Direct Ollama selection does not require the separate Rabbit gateway process.
+Neither selection pulls or downloads weights. Ollama must already be running
+locally. To keep using the terminal engine, run `rabbit-code --workspace .`.
 
 **Safety:** The interface binds to IPv4 loopback only, rejects nonlocal
 model endpoints, uses a per-process anti-CSRF token, checks browser
@@ -111,14 +115,33 @@ file editor is for existing UTF-8 text files up to 128 KiB; it is not yet a
 full Monaco/VS Code editor. Browser chats are request/response in v0.1; CLI
 streaming remains available.
 
-This is a locally served web GUI, **not yet a packaged GTK/Qt desktop app**.
+### Fedora and Linux desktop app-menu launcher
+
+From the Rabbit Code repository checkout, install a **user-local** launcher:
+
+```bash
+python3 scripts/install_linux_desktop.py --workspace "$HOME/your-project"
+```
+
+Search for **Rabbit Code** in the GNOME/KDE application launcher.
+It opens this local web UI in your normal browser without using a terminal.
+The installer writes only to `~/.local/bin/rabbit-code-gui` and
+`~/.local/share/applications/rabbit-code.desktop`. No `sudo` is needed.
+To remove the launcher:
+
+```bash
+python3 scripts/install_linux_desktop.py --uninstall
+```
+
+This is a locally served web GUI with a Linux app-menu shortcut,
+**not yet a packaged GTK/Qt desktop app**.
 Do not open the server through a reverse proxy, public tunnel, or LAN bind.
 There is no cloud account, CDN, or browser-side API key.
 
 ### Linux interface tests
 
 ```bash
-python -m pytest tests/test_web_ui.py -q
+python -m pytest tests/test_web_ui.py tests/test_linux_desktop.py -q
 python -m pytest -q
 ```
 
@@ -152,6 +175,8 @@ Implemented:
 - [x] live gateway protocol/capability probing
 - [x] automatic JSON/context fallback for models that do not use native tools reliably
 - [x] local-only Linux browser workspace (experimental v0.1)
+- [x] installed Ollama model selection (no downloads or remote inference)
+- [x] per-user GNOME/KDE app-menu launcher
 - [ ] native GTK/Qt app, advanced code editor, and integrated terminal
 
 Native tool calling is a transport capability, not a guarantee that every local
