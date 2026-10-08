@@ -180,11 +180,9 @@ def main(argv: list[str] | None = None) -> int:
             cli_args += [
                 "--base-url", "http://127.0.0.1:11434/v1",
                 "--model", args.model,
-                "--no-native-tools" if args.command == "chat" else "--stream",
             ]
-            # With agent, omit streaming from the nonstreaming agent request.
-            if args.command == "agent":
-                cli_args.remove("--stream")
+            if args.command == "chat":
+                cli_args.append("--no-native-tools")
         cli_args += [args.command, " ".join(args.message)]
     _main_engine(cli_args)
     return 0
