@@ -234,3 +234,30 @@ def test_agent_reply_visible_in_session_history(tmp_path):
             {"role": "user", "content": "inspect this", "mode": "agent"},
             {"role": "assistant", "content": "read-only answer", "mode": "agent"},
         ]
+
+
+def test_binary_file_cannot_be_edited_as_utf8(tmp_path):
+    (tmp_path / "binary.dat").write_bytes(b"ab\x00\xffcd")
+    with ui_server(tmp_path) as server:
+        status, data, _ = req(server, "GET", "/api/file?path=binary.dat")
+        assert status == 400
+        assert "not a text file" in data["error"]
+        status, data, _ = req(
+            server, "POST", "/api/save",
+            payload={"path": "binary.dat", "content": "bad",
+                     "expected_sha256": hashlib.sha256(b"ab\x00\xffcd").hexdigest(),
+                     "approved": True},
+            token=server.csrf_token,
+        )
+        assert status == 400
+        assert (tmp_path / "binary.dat").read_bytes() == b"ab\x00\xffcd"
+
+
+def test_linux_launch_script_bash_syntax():
+    import subprocess
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts/rabbit_code_linux_ui.sh"
+    result = subprocess.run(["bash", "-n", str(script)],
+                            capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
