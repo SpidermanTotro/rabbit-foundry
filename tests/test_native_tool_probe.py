@@ -1,4 +1,4 @@
-from scripts.check_native_tools import (
+from rabbit_foundry.native_tool_probe import (
     PROBE_NAME,
     PROBE_TOKEN,
     inspect_response,
