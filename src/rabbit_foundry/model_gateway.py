@@ -69,6 +69,7 @@ class Handler(BaseHTTPRequestHandler):
                 "protocol_version": GATEWAY_PROTOCOL,
                 "model": MODEL_ID,
                 "upstream": UPSTREAM,
+                "upstream_model": UPSTREAM_MODEL,
                 "streaming": True,
                 "tools": True,
                 "tool_mode": "upstream-passthrough",
