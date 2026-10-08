@@ -1,4 +1,7 @@
 import io
+import os
+import subprocess
+from pathlib import Path
 import json
 import threading
 import urllib.request
@@ -28,6 +31,7 @@ def test_gateway_advertises_current_protocol_and_model():
         assert health["status"] == "ok"
         assert health["protocol_version"] == GATEWAY_PROTOCOL == 2
         assert health["tools"] is True
+        assert health["upstream_model"] == model_gateway.UPSTREAM_MODEL
         assert health["streaming"] is True
 
         with urllib.request.urlopen(
@@ -169,6 +173,37 @@ def test_gateway_returns_502_when_nonstreaming_upstream_is_unreachable(monkeypat
             assert "unavailable" in body["error"]["message"]
         else:
             raise AssertionError("unavailable upstream must return HTTP 502")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+
+def test_boot_reuses_only_the_requested_upstream_model():
+    server, thread = serve()
+    try:
+        host, port = server.server_address
+        boot = Path(__file__).resolve().parents[1] / "scripts" / "rabbit_code_boot.sh"
+        env = os.environ.copy()
+        env["RABBIT_PORT"] = str(port)
+
+        env["RABBIT_UPSTREAM_MODEL"] = model_gateway.UPSTREAM_MODEL
+        good = subprocess.run(
+            ["bash", str(boot)], env=env, capture_output=True,
+            text=True, timeout=10, check=False,
+        )
+        assert good.returncode == 0, good.stdout + good.stderr
+        assert "already running" in good.stdout
+
+        env["RABBIT_UPSTREAM_MODEL"] = "other-model:1b"
+        mismatch = subprocess.run(
+            ["bash", str(boot)], env=env, capture_output=True,
+            text=True, timeout=10, check=False,
+        )
+        assert mismatch.returncode == 5, mismatch.stdout + mismatch.stderr
+        assert "different upstream model" in mismatch.stdout
+        assert "other-model:1b" in mismatch.stdout
     finally:
         server.shutdown()
         server.server_close()
