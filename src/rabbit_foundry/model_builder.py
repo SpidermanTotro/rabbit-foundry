@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+
 from .model_recipe import ModelRecipe
+
+
+# These are possible future conversion targets, not verified Rabbit outputs.
+# The real GGUF gate lives in export_readiness and must inspect a checkpoint.
+GGUF_ARCHITECTURE_CANDIDATES = frozenset({
+    "llama", "qwen2", "qwen3", "mistral", "gemma", "gemma2", "phi3",
+})
 
 
 @dataclass(frozen=True)
@@ -16,7 +24,10 @@ def plan_model(recipe: ModelRecipe, *, architecture: str = "auto") -> BuildPlan:
     recipe.validate()
     gguf_requested = "gguf" in recipe.export
     if architecture == "auto":
-        architecture = "llama-compatible" if gguf_requested else "tiny-rabbit"
+        # Do not invent a compatible architecture merely because GGUF
+        # was requested: today's Rabbit training backend is TinyRabbit.
+        architecture = "tiny-rabbit"
+
     stages = ["provenance", "privacy_redaction"]
     mapping = {
         "behavior": "behavior_course",
@@ -29,16 +40,34 @@ def plan_model(recipe: ModelRecipe, *, architecture: str = "auto") -> BuildPlan:
     stages.extend(mapping[x] for x in recipe.preserve)
     stages.extend(["family_split", "train", "heldout_eval", "greenlight", "checkpoint"])
 
-    gguf_ready = gguf_requested and architecture != "tiny-rabbit"
+    # A plan is not an exported artifact. There is no GGUF conversion/runtime
+    # verification in plan_model, so this must never be a passing readiness gate.
+    gguf_ready = False
     blocker = None
-    if gguf_requested and architecture == "tiny-rabbit":
-        blocker = (
-            "TinyRabbit uses a custom byte vocabulary, MultiheadAttention mapping, "
-            "and learned absolute positions; native llama.cpp GGUF support or an "
-            "architecture migration is required before export."
-        )
     if gguf_requested:
-        stages.append("gguf_export" if gguf_ready else "gguf_readiness_blocked")
+        if architecture in {"tiny-rabbit", "tiny_rabbit_lm"}:
+            blocker = (
+                "TinyRabbit uses a custom byte vocabulary, MultiheadAttention mapping, "
+                "and learned absolute positions; native llama.cpp GGUF support or an "
+                "architecture migration is required before export."
+            )
+            stages.append("gguf_readiness_blocked")
+        elif architecture in GGUF_ARCHITECTURE_CANDIDATES:
+            blocker = (
+                f"{architecture} is only a candidate architecture, not a verified GGUF "
+                "export. Train or supply a matching checkpoint, convert it using the "
+                "correct tokenizer/tensor mapping, then pass a llama.cpp runtime "
+                "load and inference smoke test."
+            )
+            stages.append("gguf_conversion_candidate")
+        else:
+            blocker = (
+                f"Architecture {architecture!r} is not a verified export target; "
+                "select a concrete supported architecture and verify conversion "
+                "and llama.cpp inference before declaring GGUF ready."
+            )
+            stages.append("gguf_readiness_blocked")
+
     return BuildPlan(tuple(stages), True, gguf_ready, blocker)
 
 
