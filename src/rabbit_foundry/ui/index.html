@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="rabbit-token" content="__RABBIT_CSRF_TOKEN__">
+<meta name="color-scheme" content="dark">
+<title>Rabbit Code · Linux Workspace</title>
+<style>
+:root{color-scheme:dark;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#ebf2fb;background:#0b111b}
+*{box-sizing:border-box}body{margin:0}button,textarea{font:inherit}button{cursor:pointer;color:inherit}
+.app{display:grid;grid-template-columns:225px minmax(350px,1fr) minmax(280px,35%);height:100dvh}
+aside,.chat{min-height:0;display:flex;flex-direction:column}
+aside{background:#111a28}.left{border-right:1px solid #27354b}.right{border-left:1px solid #27354b}
+.brand{padding:20px 17px;display:flex;align-items:center;gap:11px;border-bottom:1px solid #27354b}
+.logo{height:41px;width:41px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(130deg,#4fe0a6,#458fe5);font-size:22px;font-weight:900;color:#07131a}
+.brand b{font-size:17px}.muted{color:#8da2bb}.small{font-size:11px}
+.section{font-size:11px;color:#8da2bb;letter-spacing:1.5px;font-weight:800;padding:13px 16px 5px}
+.workspace{padding:15px 17px;border-bottom:1px solid #27354b;word-break:break-all;font-size:12px;line-height:1.6}
+.sessions{overflow:auto;flex:1;padding:4px 11px}
+.session,.file-row{display:block;border:0;background:transparent;text-align:left;width:100%;padding:9px;color:#afc1d8;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session:hover,.session.active,.file-row:hover{background:#21364a;color:white}
+.primary{background:#43c899;border:1px solid #43c899;color:#071a16;font-weight:750;padding:10px 14px;border-radius:9px}
+.primary:hover{background:#6ce4b7}.primary:disabled{opacity:.45;cursor:wait}
+.secondary{background:#1b2a3f;border:1px solid #3a4e67;border-radius:8px;padding:8px 11px}
+.secondary:disabled{opacity:.5;cursor:not-allowed}
+.new{margin:13px 16px}.leftfoot{border-top:1px solid #27354b;padding:13px 16px;color:#9cceb8;font-size:12px}
+.dot{display:inline-block;width:7px;height:7px;background:#44d7a4;border-radius:50%;margin-right:8px}
+.chat{background:radial-gradient(circle at 70% -30%,#192d42,#0b111b 55%)}
+.top{min-height:75px;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 24px;border-bottom:1px solid #27354b}
+.top h1{font-size:17px;line-height:1.1;margin:0 0 6px}.pill{border:1px solid #35604f;background:#193027;border-radius:30px;color:#a4e8c7;padding:7px 12px;font-size:11px}
+.messages{min-height:0;overflow:auto;flex:1;padding:24px 5%;display:flex;flex-direction:column;gap:15px}
+.message{max-width:90%;width:fit-content;border-radius:14px;background:#1b293b;border:1px solid #2b415a;padding:13px 17px;overflow-wrap:anywhere;white-space:pre-wrap}
+.message.user{align-self:flex-end;background:#21433a;border-color:#32634f}
+.role{text-transform:uppercase;letter-spacing:1.2px;font-size:10px;color:#9ab3d2;font-weight:800;margin-bottom:7px}
+.empty{color:#99aac5;max-width:350px;text-align:center;margin:auto;font-size:16px}
+.composer-wrap{border-top:1px solid #27354b;padding:15px 21px 22px;background:#111a27}
+.composer{background:#182438;border:1px solid #3a4b65;border-radius:13px;padding:13px}
+.composer:focus-within{border-color:#55c5a4}
+textarea{resize:vertical;background:transparent;color:inherit;border:none;outline:none;width:100%;min-height:80px;max-height:230px}
+textarea::placeholder{color:#8095b0}
+.actions{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.modes{display:flex;gap:7px}.mode{background:transparent;border:1px solid #40516b;border-radius:8px;padding:7px 11px}
+.mode.active{color:#c5f8de;border-color:#53b897;background:#244539}
+.hint{color:#859ab7;font-size:11px;padding:7px 3px 0}
+.inspector-head{border-bottom:1px solid #27354b;padding:20px 15px;display:flex;justify-content:space-between;align-items:center;gap:7px}
+.tabs{display:flex;gap:7px;padding:12px;border-bottom:1px solid #27354b}
+.tab{border:1px solid transparent;background:transparent;padding:7px 12px;color:#9ab0c8;border-radius:7px}
+.tab.active{background:#253850;border-color:#3a526e;color:white}
+.panel{min-height:0;display:none;flex:1;flex-direction:column}.panel.active{display:flex}
+.file-list{overflow:auto;max-height:32%;border-bottom:1px solid #27354b;padding:8px}.file-row{font-size:12px;padding:7px}
+.file-head{display:flex;align-items:center;justify-content:space-between;padding:12px;gap:10px}
+#selected-file{font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.editor-wrap{min-height:0;flex:1;padding:0 12px 12px;display:flex}
+#file-text{resize:none;min-height:0;max-height:none;border:1px solid #273a51;border-radius:8px;padding:12px;background:#080e17;font:12px/1.6 ui-monospace,Consolas,monospace}
+.git-view{padding:16px;overflow:auto;flex:1}
+pre{font:12px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.notice{min-height:39px;border-top:1px solid #27354b;padding:10px 13px;color:#93d5ba;font-size:12px;overflow-wrap:anywhere}
+.notice.error{color:#ffa4aa}
+@media(max-width:900px){.app{grid-template-columns:175px minmax(270px,1fr) minmax(220px,33%)}.top{padding:10px}}
+@media(max-width:740px){.app{height:auto;min-height:100dvh;grid-template-columns:1fr}.left{height:170px}.workspace,.leftfoot{display:none}.sessions{display:flex;overflow-x:auto}.session{min-width:140px;width:140px}.new{margin:5px 16px}.brand{padding:7px 15px}.chat{height:70dvh}.right{height:550px;border-top:1px solid #27354b}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="left" aria-label="Rabbit sessions">
+  <div class="brand"><div class="logo" aria-hidden="true">R</div><div><b>Rabbit Code</b><div class="muted small">Local Linux workspace</div></div></div>
+  <div class="workspace"><div class="muted small">WORKSPACE</div><strong id="workspace">Loading...</strong></div>
+  <button class="primary new" id="new-session">+ New session</button>
+  <div class="section">SESSIONS</div><div class="sessions" id="sessions"></div>
+  <div class="leftfoot"><span class="dot"></span>Local only · No cloud required</div>
+</aside>
+<main class="chat">
+  <div class="top"><div><h1>Rabbit Code Assistant</h1><span class="muted small" id="session-label">Workspace chat</span></div><span class="pill" id="model">Connecting...</span></div>
+  <div id="messages" class="messages" aria-live="polite"><div class="empty">🐇 Rabbit is getting ready.</div></div>
+  <div class="composer-wrap">
+    <div class="composer">
+      <textarea id="prompt" aria-label="Message" placeholder="Ask Rabbit to inspect, explain or debug your project..."></textarea>
+      <div class="actions">
+        <div class="modes"><button id="chat-mode" class="mode active" aria-pressed="true">Chat</button><button id="agent-mode" class="mode" aria-pressed="false">Agent · read-only</button></div>
+        <button id="send" class="primary">Send ↗</button>
+      </div>
+    </div>
+    <div class="hint">Ctrl+Enter to send · Agent mode cannot silently edit or run commands.</div>
+  </div>
+</main>
+<aside class="right">
+  <div class="inspector-head"><b>Workspace explorer</b><button id="refresh" class="secondary">↻ Refresh</button></div>
+  <div class="tabs"><button id="files-tab" class="tab active">Files</button><button id="git-tab" class="tab">Git diff</button></div>
+  <section id="files-panel" class="panel active">
+    <div id="files" class="file-list"></div>
+    <div class="file-head"><span id="selected-file" class="muted">Select a file</span><button id="save" class="secondary" disabled>Save edits</button></div>
+    <div class="editor-wrap"><textarea id="file-text" aria-label="File editor" spellcheck="false" placeholder="Select a workspace file to inspect..." disabled></textarea></div>
+  </section>
+  <section id="git-panel" class="panel"><div class="git-view"><pre id="git-text">Open this panel to inspect local git changes.</pre></div></section>
+  <div id="notice" class="notice" role="status">Loading workspace...</div>
+</aside>
+</div>
+<script>
+"use strict";
+const token=document.querySelector('meta[name="rabbit-token"]').content;
+const $=id=>document.getElementById(id);
+let mode="chat",busy=false,currentFile=null,currentSha=null,currentSession=null;
+async function request(url,data){
+  const options={cache:"no-store",headers:{"Accept":"application/json"}};
+  if(data!==undefined){
+    options.method="POST";
+    options.headers["Content-Type"]="application/json";
+    options.headers["X-Rabbit-Token"]=token;
+    options.body=JSON.stringify(data);
+  }
+  const response=await fetch(url,options);
+  let result;
+  try{result=await response.json()}catch(e){throw Error("Local server response was not JSON");}
+  if(!response.ok)throw Error(result.error||("HTTP "+response.status));
+  return result;
+}
+function elem(tag,cls,text){
+  const node=document.createElement(tag);
+  if(cls)node.className=cls;
+  if(text!==undefined)node.textContent=text;
+  return node;
+}
+function notice(text,isError){
+  $("notice").textContent=text;
+  $("notice").className=isError?"notice error":"notice";
+}
+function renderMessages(rows){
+  $("messages").replaceChildren();
+  if(!rows.length){
+    $("messages").append(elem("div","empty","🐇 Ask your local model about the project, or use Agent to inspect files."));
+    return;
+  }
+  for(const row of rows){
+    const item=elem("div","message "+(row.role==="user"?"user":"assistant"));
+    item.append(elem("div","role",(row.role==="user"?"You":"Rabbit")+(row.mode==="agent"?" · agent":"")),
+                elem("div","",row.content));
+    $("messages").append(item);
+  }
+  $("messages").scrollTop=$("messages").scrollHeight;
+}
+function appendMessage(role,content){
+  const item=elem("div","message "+role);
+  item.append(elem("div","role",role==="user"?"You":"Rabbit"),elem("div","",content));
+  $("messages").append(item);
+  $("messages").scrollTop=$("messages").scrollHeight;
+}
+async function loadState(){
+  const state=await request("/api/state");
+  $("workspace").textContent=state.workspace;
+  $("model").textContent=state.provider+" · "+state.model;
+  $("session-label").textContent="Session "+state.session.slice(0,12);
+  currentSession=state.session;
+  renderMessages(state.messages);
+}
+async function loadSessions(){
+  const result=await request("/api/sessions");
+  $("sessions").replaceChildren();
+  for(const sid of result.sessions){
+    const button=elem("button","session"+(sid===currentSession?" active":""),"◷ "+sid.slice(0,15));
+    button.title=sid;
+    button.addEventListener("click",async()=>{
+      if(busy||sid===currentSession)return;
+      try{
+        await request("/api/session/resume",{session:sid});
+        await loadState();await loadSessions();notice("Session resumed");
+      }catch(e){notice(e.message,true);}
+    });
+    $("sessions").append(button);
+  }
+}
+async function loadFiles(){
+  const result=await request("/api/files");
+  $("files").replaceChildren();
+  for(const path of result.files){
+    const button=elem("button","file-row","⌑ "+path);
+    button.title=path;
+    button.addEventListener("click",()=>openFile(path));
+    $("files").append(button);
+  }
+  if(!result.files.length)$("files").append(elem("div","muted","No visible files"));
+}
+async function openFile(path){
+  if(busy)return;
+  try{
+    const file=await request("/api/file?path="+encodeURIComponent(path));
+    currentFile=file.path;currentSha=file.sha256;
+    $("selected-file").textContent=path;
+    $("file-text").value=file.content;
+    $("file-text").disabled=false;
+    $("save").disabled=false;
+    notice("Loaded "+path);
+  }catch(e){notice(e.message,true);}
+}
+async function loadGit(){
+  try{
+    const git=await request("/api/git");
+    $("git-text").textContent="GIT STATUS\n"+(git.status||"(clean)")+"\n\nUNSTAGED DIFF\n"+(git.diff||"(none)");
+  }catch(e){$("git-text").textContent=e.message;notice(e.message,true);}
+}
+function switchTab(name){
+  for(const key of ["files","git"]){
+    $(key+"-tab").classList.toggle("active",key===name);
+    $(key+"-panel").classList.toggle("active",key===name);
+  }
+  if(name==="git")loadGit();
+}
+function setMode(next){
+  mode=next;
+  for(const key of ["chat","agent"]){
+    $(key+"-mode").classList.toggle("active",key===next);
+    $(key+"-mode").setAttribute("aria-pressed",String(key===next));
+  }
+}
+async function send(){
+  const prompt=$("prompt").value.trim();
+  if(!prompt||busy)return;
+  busy=true;$("send").disabled=true;
+  $("prompt").value="";
+  appendMessage("user",prompt);
+  notice("Waiting for local model...");
+  try{
+    const out=await request("/api/send",{prompt:prompt,mode:mode});
+    appendMessage("assistant",out.response);
+    notice("Response received");
+    await loadSessions();
+  }catch(e){
+    appendMessage("assistant","Request failed: "+e.message);
+    notice(e.message,true);
+  }finally{busy=false;$("send").disabled=false;}
+}
+$("send").addEventListener("click",send);
+$("prompt").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&e.ctrlKey){e.preventDefault();send();}
+});
+$("chat-mode").addEventListener("click",()=>setMode("chat"));
+$("agent-mode").addEventListener("click",()=>setMode("agent"));
+$("files-tab").addEventListener("click",()=>switchTab("files"));
+$("git-tab").addEventListener("click",()=>switchTab("git"));
+$("refresh").addEventListener("click",async()=>{
+  try{await Promise.all([loadFiles(),loadSessions()]);await loadState();notice("Refreshed");}
+  catch(e){notice(e.message,true);}
+});
+$("save").addEventListener("click",async()=>{
+  if(!currentFile||busy)return;
+  if(!window.confirm("Save changes to "+currentFile+" on your local disk?"))return;
+  try{
+    const content=$("file-text").value;
+    const result=await request("/api/save",{path:currentFile,content:content,expected_sha256:currentSha,approved:true});
+    currentSha=result.sha256;notice("Saved "+currentFile);
+  }catch(e){notice(e.message,true);}
+});
+$("new-session").addEventListener("click",async()=>{
+  if(busy)return;
+  try{await request("/api/session/new",{});await loadState();await loadSessions();notice("New session created");}
+  catch(e){notice(e.message,true);}
+});
+(async function boot(){
+  try{await loadState();await loadSessions();await loadFiles();notice("Ready · all inference routes are local");}
+  catch(e){notice(e.message,true);}
+})();
+</script>
+</body>
+</html>
