@@ -174,6 +174,9 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-tokens", type=int, default=1024)
     parser.add_argument("--agent-steps", type=int, default=8)
     parser.add_argument("--stream", action="store_true")
+    parser.add_argument("--ui", action="store_true", help="open local Linux browser UI")
+    parser.add_argument("--ui-port", type=int, default=8766)
+    parser.add_argument("--open-browser", action="store_true")
     parser.add_argument("--no-streaming", action="store_true")
     parser.add_argument("--no-native-tools", action="store_true")
     parser.add_argument(
@@ -193,7 +196,19 @@ def main() -> None:
     parser = make_parser()
     args = parser.parse_args()
 
+    if args.ui:
+        if args.command:
+            parser.error("--ui cannot be combined with a one-shot command")
+        if args.allow_write or args.allow_exec or args.allow_network:
+            parser.error("--ui always starts with write/execute approval gates and no remote network")
     runtime = build_runtime(args)
+
+    if args.ui:
+        if not runtime.router.provider(runtime.provider_id).local:
+            parser.error("--ui only supports local loopback model endpoints")
+        from .web_ui import serve_browser_ui
+        serve_browser_ui(runtime, port=args.ui_port, open_browser=args.open_browser)
+        return
 
     if args.command:
         try:
