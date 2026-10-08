@@ -64,6 +64,67 @@ Rabbit Code is the user-facing coding-agent platform.
 
 That lets us evolve the product without breaking the already-working training namespace.
 
+## Install the `rabbit` helper CLI on Linux
+
+Rabbit Code supports a Bun/OpenCode-style quick start **without needing Bun,
+npm, root access or downloading a remote shell script**.
+
+From a Rabbit Code source checkout on Linux (Python 3.11+):
+
+```bash
+bash scripts/install_rabbit.sh
+```
+
+The installer creates `~/.local/bin/rabbit` and points it to **this checkout**.
+It does not change system Python, install weights, download packages, or modify
+shell startup files. Keep the checkout folder on disk. For an existing clone,
+`git pull` updates the Python code; rerun the installer only if you relocate
+the checkout. For the setup that installs a Python package instead, use
+`pipx install --editable .` (which may download Python dependencies).
+
+If `rabbit` is not found after installation, add the user binary directory to
+your Bash PATH:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Add the same line to `~/.bashrc` if you want it applied to future Bash
+sessions, or configure the equivalent in your own Zsh/Fish startup file.
+
+### Helper commands
+
+```bash
+rabbit --help
+rabbit doctor
+rabbit doctor --json
+rabbit models
+rabbit ui --workspace .
+rabbit ui --workspace "$HOME/projects/my-app" --no-browser
+rabbit chat "Hello Rabbit"                     # original local Rabbit gateway
+rabbit chat --model qwen2.5-coder:7b "Review this code"   # installed Ollama model
+rabbit agent "Inspect this repository for bugs" # read-only by default
+rabbit version
+```
+
+`rabbit doctor` checks available tools, PATH, locally installed models,
+and whether Ollama or Rabbit's gateway responds on localhost. It makes no
+changes. `rabbit models` never pulls weights or accesses the network except
+the fixed loopback Ollama endpoint. The helper agent does **not** automatically
+approve file writes or command execution.
+
+To update/remove only the managed `rabbit` launcher:
+
+```bash
+bash scripts/install_rabbit.sh --update
+bash scripts/install_rabbit.sh --uninstall
+```
+
+The installer refuses to replace a different, unmanaged program named `rabbit`.
+The graphical app launcher is installed separately using
+`scripts/install_linux_desktop.py`. Neither uninstall removes session logs
+or trained models.
+
 ## Linux workspace interface (experimental v0.1)
 
 Rabbit Code now has a responsive **local browser interface** alongside the
