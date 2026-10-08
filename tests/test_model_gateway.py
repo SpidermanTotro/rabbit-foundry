@@ -139,3 +139,37 @@ def test_gateway_returns_upstream_stream_http_error_before_sse(monkeypatch):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+
+def test_gateway_returns_502_when_nonstreaming_upstream_is_unreachable(monkeypatch):
+    def unreachable(url, payload=None):
+        raise urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(model_gateway, "request_json", unreachable)
+    server, thread = serve()
+    try:
+        host, port = server.server_address
+        payload = json.dumps({
+            "model": "rabbit-code",
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": False,
+        }).encode()
+        request = urllib.request.Request(
+            f"http://{host}:{port}/v1/chat/completions",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(request, timeout=5)
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 502
+            body = json.loads(exc.read())
+            assert "unavailable" in body["error"]["message"]
+        else:
+            raise AssertionError("unavailable upstream must return HTTP 502")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
