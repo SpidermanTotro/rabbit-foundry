@@ -197,6 +197,27 @@ def test_ui_refuses_unsafe_permission_configurations(tmp_path):
     with pytest.raises(ValueError, match="network routing"):
         RabbitWebServer(("127.0.0.1", 0), runtime)
 
+    class RemoteRouter(FakeRouter):
+        def provider(self, provider_id):
+            return ProviderConfig(
+                "fake", "https://example.com/v1", "bad-remote"
+            )
+
+    remote_runtime = RabbitCodeRuntime(
+        RemoteRouter(), "fake",
+        Workspace(tmp_path, PermissionPolicy()),
+        SessionStore(tmp_path / "sessions"),
+    )
+    with pytest.raises(ValueError, match="loopback model"):
+        RabbitWebServer(("127.0.0.1", 0), remote_runtime)
+
+
+def test_gateway_health_unknown_without_probe(tmp_path):
+    with ui_server(tmp_path) as server:
+        status, data, _ = req(server, "GET", "/api/health")
+        assert status == 200
+        assert data["reachable"] is False
+
 
 def test_agent_reply_visible_in_session_history(tmp_path):
     with ui_server(tmp_path) as server:
