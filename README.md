@@ -64,6 +64,45 @@ Rabbit Code is the user-facing coding-agent platform.
 
 That lets us evolve the product without breaking the already-working training namespace.
 
+## Fedora: fix `pip: No matching distribution found for torch`
+
+For the Linux coding GUI and the `rabbit` helper, **PyTorch is not required**.
+Older Rabbit Code builds accidentally listed `torch>=2.4` as a mandatory
+dependency. This branch now installs the CLI without Torch and keeps training
+features available separately as `.[training]`.
+
+If you already cloned this branch and `pip install -e ".[dev]"` failed with a
+Torch resolution error, **do not clone again or delete your virtual environment**.
+From inside the existing checkout (for example,
+`~/rabbit-foundry/rabbit-foundry` if you cloned from `~/rabbit-foundry`):
+
+```bash
+git pull --ff-only
+source .venv/bin/activate
+python -m pip install -e .
+rabbit --help
+rabbit-code --help
+rabbit ui --workspace .
+```
+
+If you want optional developer testing tools, run
+`python -m pip install -e ".[dev]"` after updating. The app-menu launcher
+installed by `scripts/install_linux_desktop.py` can remain installed; it
+points to the existing checkout.
+
+For immediate troubleshooting even when pip installation has not succeeded:
+
+```bash
+PYTHONPATH="$PWD/src" python -m rabbit_foundry.rabbit_code --workspace "$PWD" --ui --open-browser
+```
+
+**Train/export models only in a separate compatible Python/CUDA
+environment.** Those tasks still require PyTorch; see `.[training]`
+and the official PyTorch wheel availability for your Python version.
+If `python --version` is newer than the versions with published wheels,
+don't change or overwrite your working GPU training environment just to start
+the coding GUI. A pip update alone cannot create missing binary wheels.
+
 ## Install the `rabbit` helper CLI on Linux
 
 Rabbit Code supports a Bun/OpenCode-style quick start **without needing Bun,
