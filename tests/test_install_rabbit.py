@@ -39,6 +39,7 @@ def test_install_update_help_and_uninstall(tmp_path):
     launcher = bin_dir / "rabbit"
     assert launcher.is_file()
     assert launcher.stat().st_mode & 0o111
+    assert "${PYTHONPATH:+:$PYTHONPATH}" in launcher.read_text()
 
     env = os.environ.copy()
     env["HOME"] = str(home)
