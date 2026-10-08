@@ -28,7 +28,7 @@ aside{background:#111a28}.left{border-right:1px solid #27354b}.right{border-left
 .dot{display:inline-block;width:7px;height:7px;background:#44d7a4;border-radius:50%;margin-right:8px}
 .chat{background:radial-gradient(circle at 70% -30%,#192d42,#0b111b 55%)}
 .top{min-height:75px;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 24px;border-bottom:1px solid #27354b}
-.top h1{font-size:17px;line-height:1.1;margin:0 0 6px}.pill{border:1px solid #35604f;background:#193027;border-radius:30px;color:#a4e8c7;padding:7px 12px;font-size:11px}
+.top h1{font-size:17px;line-height:1.1;margin:0 0 6px}.pill{border:1px solid #35604f;background:#193027;border-radius:30px;color:#a4e8c7;padding:7px 12px;font-size:11px}.pill.offline{background:#302322;border-color:#734848;color:#ffd0b9}
 .messages{min-height:0;overflow:auto;flex:1;padding:24px 5%;display:flex;flex-direction:column;gap:15px}
 .message{max-width:90%;width:fit-content;border-radius:14px;background:#1b293b;border:1px solid #2b415a;padding:13px 17px;overflow-wrap:anywhere;white-space:pre-wrap}
 .message.user{align-self:flex-end;background:#21433a;border-color:#32634f}
@@ -153,6 +153,16 @@ async function loadState(){
   currentSession=state.session;
   renderMessages(state.messages);
 }
+async function loadHealth(){
+  const health=await request("/api/health");
+  $("model").classList.toggle("offline",!health.reachable);
+  if(health.reachable){
+    const model=health.upstream_model ? " ("+health.upstream_model+")" : "";
+    notice("Local gateway connected"+model);
+  }else{
+    notice("Gateway offline. Start it with: bash scripts/rabbit_code_boot.sh",true);
+  }
+}
 async function loadSessions(){
   const result=await request("/api/sessions");
   $("sessions").replaceChildren();
@@ -238,7 +248,7 @@ $("agent-mode").addEventListener("click",()=>setMode("agent"));
 $("files-tab").addEventListener("click",()=>switchTab("files"));
 $("git-tab").addEventListener("click",()=>switchTab("git"));
 $("refresh").addEventListener("click",async()=>{
-  try{await Promise.all([loadFiles(),loadSessions()]);await loadState();notice("Refreshed");}
+  try{await Promise.all([loadFiles(),loadSessions()]);await loadState();await loadHealth();}
   catch(e){notice(e.message,true);}
 });
 $("save").addEventListener("click",async()=>{
@@ -256,7 +266,7 @@ $("new-session").addEventListener("click",async()=>{
   catch(e){notice(e.message,true);}
 });
 (async function boot(){
-  try{await loadState();await loadSessions();await loadFiles();notice("Ready · all inference routes are local");}
+  try{await loadState();await loadSessions();await loadFiles();await loadHealth();}
   catch(e){notice(e.message,true);}
 })();
 </script>
