@@ -201,3 +201,24 @@ def test_router_probe_reads_gateway_health_from_v1_base(monkeypatch):
     assert result["reachable"] is True
     assert result["health"]["protocol_version"] == 2
     assert result["health"]["tools"] is True
+
+
+def test_router_stream_error_event_does_not_become_empty_success(monkeypatch):
+    def fake_urlopen(request, timeout):
+        return FakeStreamResponse([
+            b'data: {"error":{"message":"gateway streaming interrupted"}}\n',
+            b'\n',
+        ])
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    router = ModelRouter()
+    router.register(ProviderConfig(
+        "local",
+        "http://127.0.0.1:8765/v1",
+        "rabbit-code",
+        supports_streaming=True,
+    ))
+    with pytest.raises(RuntimeError, match="streaming interrupted"):
+        list(router.stream_text(
+            "local", [{"role": "user", "content": "hello"}]
+        ))
