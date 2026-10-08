@@ -91,6 +91,13 @@ bash scripts/rabbit_code_boot.sh
 rabbit-code --workspace "$HOME/your-project" --ui --open-browser
 ```
 
+Or run directly from this source checkout without relying on a globally installed
+Rabbit Code version:
+
+```bash
+bash scripts/rabbit_code_linux_ui.sh "$HOME/your-project"
+```
+
 The browser opens at `http://127.0.0.1:8766/`. Without `--open-browser`,
 open that address yourself. Pick a free port with `--ui-port 8877`. To
 use the terminal engine as before, just run `rabbit-code --workspace .`.
