@@ -235,6 +235,17 @@ class ModelRouter:
                         event = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    if not isinstance(event, dict):
+                        continue
+                    error = event.get("error")
+                    if error is not None:
+                        if isinstance(error, dict):
+                            detail = str(error.get("message", "stream interrupted"))
+                        else:
+                            detail = str(error)
+                        raise RuntimeError(
+                            f"provider {provider_id} streaming failed: {detail[:300]}"
+                        )
                     choices = event.get("choices")
                     if not isinstance(choices, list) or not choices:
                         continue
