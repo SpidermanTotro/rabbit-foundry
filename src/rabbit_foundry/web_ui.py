@@ -19,6 +19,7 @@ from pathlib import Path
 from .agent_loop import AgentLoop
 from .permissions import Decision
 from .session_store import SessionStore
+from .ui_models import available_model_options, installed_ollama_models, select_model
 
 MAX_REQUEST_BYTES = 256 * 1024
 MAX_FILE_BYTES = 128 * 1024
@@ -76,6 +77,8 @@ class RabbitWebServer(ThreadingHTTPServer):
         if not runtime.router.provider(runtime.provider_id).local:
             raise ValueError("UI requires a loopback model endpoint")
         self.runtime = runtime
+        self.initial_provider = runtime.router.provider(runtime.provider_id)
+        self.active_model_choice = "original"
         self.csrf_token = secrets.token_urlsafe(32)
         self.runtime_lock = threading.RLock()
         super().__init__(address, RabbitWebHandler)
@@ -170,7 +173,19 @@ class RabbitWebHandler(BaseHTTPRequestHandler):
                         "local": provider.local,
                         "messages": chat_messages(runtime.session),
                     })
+                if parsed.path == "/api/models":
+                    return self._send(200, {
+                        "options": available_model_options(self.server.initial_provider),
+                        "selected": self.server.active_model_choice,
+                    })
                 if parsed.path == "/api/health":
+                    if self.server.active_model_choice.startswith("ollama:"):
+                        current = runtime.router.provider(runtime.provider_id).model
+                        return self._send(200, {
+                            "reachable": current in installed_ollama_models(),
+                            "upstream_model": current,
+                            "protocol_version": None,
+                        })
                     try:
                         probe = (
                             runtime.router.probe(runtime.provider_id)
@@ -229,6 +244,15 @@ class RabbitWebHandler(BaseHTTPRequestHandler):
             payload = self._read_payload()
             with self.server.runtime_lock:
                 runtime = self.server.runtime
+                if self.path == "/api/model":
+                    config = select_model(
+                        runtime, self.server.initial_provider, payload.get("selection")
+                    )
+                    self.server.active_model_choice = payload["selection"]
+                    return self._send(200, {
+                        "selected": self.server.active_model_choice,
+                        "model": config.model,
+                    })
                 if self.path == "/api/send":
                     prompt = payload.get("prompt")
                     mode = payload.get("mode", "chat")
