@@ -170,7 +170,11 @@ class RabbitWebHandler(BaseHTTPRequestHandler):
                     })
                 if parsed.path == "/api/health":
                     try:
-                        probe = runtime.router.probe(runtime.provider_id)
+                        probe = (
+                            runtime.router.probe(runtime.provider_id)
+                            if callable(getattr(runtime.router, "probe", None))
+                            else {"reachable": False}
+                        )
                     except (OSError, ValueError, RuntimeError) as exc:
                         probe = {"reachable": False, "error": str(exc)[:250]}
                     health = probe.get("health") if isinstance(probe, dict) else None
