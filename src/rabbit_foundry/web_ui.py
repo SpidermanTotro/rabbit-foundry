@@ -168,6 +168,23 @@ class RabbitWebHandler(BaseHTTPRequestHandler):
                         "local": provider.local,
                         "messages": chat_messages(runtime.session),
                     })
+                if parsed.path == "/api/health":
+                    try:
+                        probe = runtime.router.probe(runtime.provider_id)
+                    except (OSError, ValueError, RuntimeError) as exc:
+                        probe = {"reachable": False, "error": str(exc)[:250]}
+                    health = probe.get("health") if isinstance(probe, dict) else None
+                    return self._send(200, {
+                        "reachable": bool(probe.get("reachable")) if isinstance(probe, dict) else False,
+                        "upstream_model": (
+                            health.get("upstream_model", health.get("model"))
+                            if isinstance(health, dict) else None
+                        ),
+                        "protocol_version": (
+                            health.get("protocol_version")
+                            if isinstance(health, dict) else None
+                        ),
+                    })
                 if parsed.path == "/api/files":
                     return self._send(200, {"files": runtime.list("**/*")})
                 if parsed.path == "/api/file":
