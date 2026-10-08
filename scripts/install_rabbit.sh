@@ -58,7 +58,7 @@ cat > "$tmp_file" <<EOF
 #!/usr/bin/env bash
 $MARKER
 set -euo pipefail
-export PYTHONPATH=$src_path${PYTHONPATH:+:\$PYTHONPATH}
+export PYTHONPATH=$src_path\${PYTHONPATH:+:\$PYTHONPATH}
 exec python3 -m rabbit_foundry.helper_cli "\$@"
 EOF
 
