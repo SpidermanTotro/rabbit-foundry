@@ -109,7 +109,28 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_non_streaming(forwarded)
 
     def _handle_non_streaming(self, forwarded: dict) -> None:
-        status, response = request_json(f"{UPSTREAM}/chat/completions", forwarded)
+        try:
+            status, response = request_json(
+                f"{UPSTREAM}/chat/completions", forwarded
+            )
+        except (urllib.error.URLError, TimeoutError, OSError):
+            self._json(502, {
+                "error": {"message": "upstream model endpoint unavailable"},
+                "model": MODEL_ID,
+            })
+            return
+        except (ValueError, TypeError):
+            self._json(502, {
+                "error": {"message": "upstream returned invalid JSON"},
+                "model": MODEL_ID,
+            })
+            return
+        if not isinstance(response, dict):
+            self._json(502, {
+                "error": {"message": "upstream response must be a JSON object"},
+                "model": MODEL_ID,
+            })
+            return
         if status < 400:
             response["model"] = MODEL_ID
         self._json(status, response)
