@@ -64,6 +64,60 @@ Rabbit Code is the user-facing coding-agent platform.
 
 That lets us evolve the product without breaking the already-working training namespace.
 
+## Linux workspace interface (experimental v0.1)
+
+Rabbit Code now has a responsive **local browser interface** alongside the
+original terminal application. It is a GUI for the same local Python runtime,
+not a remote coding service. The first version includes chat, a read-only agent,
+a workspace file explorer/editor, Git status/diff, and resumable sessions.
+
+**Installation** (from this checkout):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+**Terminal 1 — start the existing model gateway** (requires local Ollama):
+
+```bash
+bash scripts/rabbit_code_boot.sh
+```
+
+**Terminal 2 — launch the interface**:
+
+```bash
+rabbit-code --workspace "$HOME/your-project" --ui --open-browser
+```
+
+The browser opens at `http://127.0.0.1:8766/`. Without `--open-browser`,
+open that address yourself. Pick a free port with `--ui-port 8877`. To
+use the terminal engine as before, just run `rabbit-code --workspace .`.
+
+**Safety:** The interface binds to IPv4 loopback only, rejects nonlocal
+model endpoints, uses a per-process anti-CSRF token, checks browser
+Host/Origin, and blocks network routing. Agent mode cannot approve writes or
+sandbox execution. File-editor changes need explicit confirmation and matching
+on-disk SHA-256; concurrent edits are rejected instead of overwritten. The
+file editor is for existing UTF-8 text files up to 128 KiB; it is not yet a
+full Monaco/VS Code editor. Browser chats are request/response in v0.1; CLI
+streaming remains available.
+
+This is a locally served web GUI, **not yet a packaged GTK/Qt desktop app**.
+Do not open the server through a reverse proxy, public tunnel, or LAN bind.
+There is no cloud account, CDN, or browser-side API key.
+
+### Linux interface tests
+
+```bash
+python -m pytest tests/test_web_ui.py -q
+python -m pytest -q
+```
+
+Long-running model calls are synchronous in v0.1; use smaller tasks if
+the UI appears busy, and use the terminal for advanced or batch operations.
+
 ## Rabbit Code runtime
 
 The first real Rabbit Code runtime is now in-tree.
@@ -90,7 +144,8 @@ Implemented:
 - [x] streaming through the Rabbit Code model router and CLI
 - [x] live gateway protocol/capability probing
 - [x] automatic JSON/context fallback for models that do not use native tools reliably
-- [ ] desktop/TUI interface beyond the current CLI
+- [x] local-only Linux browser workspace (experimental v0.1)
+- [ ] native GTK/Qt app, advanced code editor, and integrated terminal
 
 Native tool calling is a transport capability, not a guarantee that every local
 model will choose or format tool calls correctly. Rabbit Code prefers native
