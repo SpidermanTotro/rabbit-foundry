@@ -64,6 +64,190 @@ Rabbit Code is the user-facing coding-agent platform.
 
 That lets us evolve the product without breaking the already-working training namespace.
 
+## Fedora: fix `pip: No matching distribution found for torch`
+
+For the Linux coding GUI and the `rabbit` helper, **PyTorch is not required**.
+Older Rabbit Code builds accidentally listed `torch>=2.4` as a mandatory
+dependency. This branch now installs the CLI without Torch and keeps training
+features available separately as `.[training]`.
+
+If you already cloned this branch and `pip install -e ".[dev]"` failed with a
+Torch resolution error, **do not clone again or delete your virtual environment**.
+From inside the existing checkout (for example,
+`~/rabbit-foundry/rabbit-foundry` if you cloned from `~/rabbit-foundry`):
+
+```bash
+git pull --ff-only
+source .venv/bin/activate
+python -m pip install -e .
+rabbit --help
+rabbit-code --help
+rabbit ui --workspace .
+```
+
+If you want optional developer testing tools, run
+`python -m pip install -e ".[dev]"` after updating. The app-menu launcher
+installed by `scripts/install_linux_desktop.py` can remain installed; it
+points to the existing checkout.
+
+For immediate troubleshooting even when pip installation has not succeeded:
+
+```bash
+PYTHONPATH="$PWD/src" python -m rabbit_foundry.rabbit_code --workspace "$PWD" --ui --open-browser
+```
+
+**Train/export models only in a separate compatible Python/CUDA
+environment.** Those tasks still require PyTorch; see `.[training]`
+and the official PyTorch wheel availability for your Python version.
+If `python --version` is newer than the versions with published wheels,
+don't change or overwrite your working GPU training environment just to start
+the coding GUI. A pip update alone cannot create missing binary wheels.
+
+## Install the `rabbit` helper CLI on Linux
+
+Rabbit Code supports a Bun/OpenCode-style quick start **without needing Bun,
+npm, root access or downloading a remote shell script**.
+
+From a Rabbit Code source checkout on Linux (Python 3.11+):
+
+```bash
+bash scripts/install_rabbit.sh
+```
+
+The installer creates `~/.local/bin/rabbit` and points it to **this checkout**.
+It does not change system Python, install weights, download packages, or modify
+shell startup files. Keep the checkout folder on disk. For an existing clone,
+`git pull` updates the Python code; rerun the installer only if you relocate
+the checkout. For the setup that installs a Python package instead, use
+`pipx install --editable .` (which may download Python dependencies).
+
+If `rabbit` is not found after installation, add the user binary directory to
+your Bash PATH:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Add the same line to `~/.bashrc` if you want it applied to future Bash
+sessions, or configure the equivalent in your own Zsh/Fish startup file.
+
+### Helper commands
+
+```bash
+rabbit --help
+rabbit doctor
+rabbit doctor --json
+rabbit models
+rabbit ui --workspace .
+rabbit ui --workspace "$HOME/projects/my-app" --no-browser
+rabbit chat "Hello Rabbit"                     # original local Rabbit gateway
+rabbit chat --model qwen2.5-coder:7b "Review this code"   # installed Ollama model
+rabbit agent "Inspect this repository for bugs" # read-only by default
+rabbit version
+```
+
+`rabbit doctor` checks available tools, PATH, locally installed models,
+and whether Ollama or Rabbit's gateway responds on localhost. It makes no
+changes. `rabbit models` never pulls weights or accesses the network except
+the fixed loopback Ollama endpoint. The helper agent does **not** automatically
+approve file writes or command execution.
+
+To update/remove only the managed `rabbit` launcher:
+
+```bash
+bash scripts/install_rabbit.sh --update
+bash scripts/install_rabbit.sh --uninstall
+```
+
+The installer refuses to replace a different, unmanaged program named `rabbit`.
+The graphical app launcher is installed separately using
+`scripts/install_linux_desktop.py`. Neither uninstall removes session logs
+or trained models.
+
+## Linux workspace interface (experimental v0.1)
+
+Rabbit Code now has a responsive **local browser interface** alongside the
+original terminal application. It is a GUI for the same local Python runtime,
+not a remote coding service. The first version includes chat, a read-only agent,
+a workspace file explorer/editor, Git status/diff, and resumable sessions.
+
+**Installation** (from this checkout):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+**Optional — start the original Rabbit model gateway** (requires local Ollama):
+
+```bash
+bash scripts/rabbit_code_boot.sh
+```
+
+**Launch the interface**:
+
+```bash
+rabbit-code --workspace "$HOME/your-project" --ui --open-browser
+```
+
+Or run directly from this source checkout without relying on a globally installed
+Rabbit Code version:
+
+```bash
+bash scripts/rabbit_code_linux_ui.sh "$HOME/your-project"
+```
+
+The browser opens at `http://127.0.0.1:8766/`. Without `--open-browser`,
+open that address yourself. Pick a free port with `--ui-port 8877`.
+Use the **Local model** selector to switch to any model already installed
+in your loopback Ollama service, or switch back to the original Rabbit gateway.
+Direct Ollama selection does not require the separate Rabbit gateway process.
+Neither selection pulls or downloads weights. Ollama must already be running
+locally. To keep using the terminal engine, run `rabbit-code --workspace .`.
+
+**Safety:** The interface binds to IPv4 loopback only, rejects nonlocal
+model endpoints, uses a per-process anti-CSRF token, checks browser
+Host/Origin, and blocks network routing. Agent mode cannot approve writes or
+sandbox execution. File-editor changes need explicit confirmation and matching
+on-disk SHA-256; concurrent edits are rejected instead of overwritten. The
+file editor is for existing UTF-8 text files up to 128 KiB; it is not yet a
+full Monaco/VS Code editor. Browser chats are request/response in v0.1; CLI
+streaming remains available.
+
+### Fedora and Linux desktop app-menu launcher
+
+From the Rabbit Code repository checkout, install a **user-local** launcher:
+
+```bash
+python3 scripts/install_linux_desktop.py --workspace "$HOME/your-project"
+```
+
+Search for **Rabbit Code** in the GNOME/KDE application launcher.
+It opens this local web UI in your normal browser without using a terminal.
+The installer writes only to `~/.local/bin/rabbit-code-gui` and
+`~/.local/share/applications/rabbit-code.desktop`. No `sudo` is needed.
+To remove the launcher:
+
+```bash
+python3 scripts/install_linux_desktop.py --uninstall
+```
+
+This is a locally served web GUI with a Linux app-menu shortcut,
+**not yet a packaged GTK/Qt desktop app**.
+Do not open the server through a reverse proxy, public tunnel, or LAN bind.
+There is no cloud account, CDN, or browser-side API key.
+
+### Linux interface tests
+
+```bash
+python -m pytest tests/test_web_ui.py tests/test_linux_desktop.py -q
+python -m pytest -q
+```
+
+Long-running model calls are synchronous in v0.1; use smaller tasks if
+the UI appears busy, and use the terminal for advanced or batch operations.
+
 ## Rabbit Code runtime
 
 The first real Rabbit Code runtime is now in-tree.
@@ -90,7 +274,10 @@ Implemented:
 - [x] streaming through the Rabbit Code model router and CLI
 - [x] live gateway protocol/capability probing
 - [x] automatic JSON/context fallback for models that do not use native tools reliably
-- [ ] desktop/TUI interface beyond the current CLI
+- [x] local-only Linux browser workspace (experimental v0.1)
+- [x] installed Ollama model selection (no downloads or remote inference)
+- [x] per-user GNOME/KDE app-menu launcher
+- [ ] native GTK/Qt app, advanced code editor, and integrated terminal
 
 Native tool calling is a transport capability, not a guarantee that every local
 model will choose or format tool calls correctly. Rabbit Code prefers native

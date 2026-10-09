@@ -7,16 +7,21 @@ name = "rabbit-code"
 version = "0.1.0"
 description = "Local-first coding agent and owned-model research platform"
 requires-python = ">=3.11"
-dependencies = ["torch>=2.4"]
+dependencies = []
 
 [project.scripts]
 rabbit-code = "rabbit_foundry.rabbit_code:main"
+rabbit = "rabbit_foundry.helper_cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+training = ["torch>=2.4"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+rabbit_foundry = ["ui/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
